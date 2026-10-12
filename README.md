@@ -23,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.3.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.4.0/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.3.0/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.4.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.3.0"`).
+`OasisUI.Version` holds the loaded version (`"1.4.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.3.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.4.0/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -62,11 +62,15 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
   the layout is saved per page.
 - **Favorites**: the star on a card pins it to the Favorites page. Cards there are live mirrors of the
   originals, and that page can be rearranged too.
-- **Search** across every tab and sub-tab (Ctrl+F). Matching cards are shown with their tab name, cards
+- **Search** across every tab and sub-tab (Ctrl+F, or `SearchShortcut = false`). Matching cards are shown with their tab name, cards
   that only match through a child element open automatically, and matching rows are highlighted.
 - **Keybinds** as pills on cards and rows. Click a pill and press a key, right-click it to choose Toggle, Hold
-  or Always. `Listed = false` keeps a bind out of the keybind list. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while
-  binding (keep or clear), whether mouse buttons are allowed, blacklisted keys and unclearable keys are all
+  or Always. **Combos** such as `LCtrl + L`: hold Ctrl, Shift or Alt (left or right) while binding and the
+  next key completes the bind; let go and the modifier alone is the key. `ComboKeys` sets how many keys a
+  bind may have (1 turns combos off), globally, per window and per bind. A press fires the most specific
+  match, so `LCtrl + L` does not also fire a plain `L`. `Listed = false` keeps a bind out of the keybind
+  list. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while binding
+  (keep or clear), whether mouse buttons are allowed, blacklisted keys and unclearable keys are all
   configurable, globally and per bind.
 - **Elements**: Toggle and Checkbox (both can have a key and a value box in the same row), Button (styles,
   confirm, key), ButtonRow,
@@ -84,7 +88,8 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
   to their content; scale and transparency are adjustable per panel.
 - **Theme editor** in the Settings tab: presets, nine colours, window, card and field transparency,
   corner radius, font, screen fit and scale, animation speed, background gradient, animated title,
-  background blur and compact sidebar. Themes can be saved, loaded, exported and imported.
+  background blur, compact sidebar and card descriptions. Themes can be saved, loaded, exported and imported.
+  Tooltips can be turned off in Behaviour.
 - **Config manager**: save, load, rename, delete, autoload, auto save, and export/import through the
   clipboard. Keybinds are stored in the config too.
 - **Keybind list overlay** with its own settings: all or active binds, sort order, grouping by mode, column
@@ -118,6 +123,8 @@ local Window = OasisUI:CreateWindow({
     Tags = { "beta", { Text = "v1.2", Color = Color3.fromRGB(70, 200, 120) } },
     ToggleKey = Enum.KeyCode.RightShift,
     Search = true,
+    SearchShortcut = true,                -- false: the bar stays, Ctrl+F is not taken
+    ComboKeys = 3,                        -- keys per bind until the user changes it in Settings
     Resizable = true,
     Draggable = true,
     Minimizable = true,
@@ -196,7 +203,7 @@ Shared methods: `Get()`, `Set(value, silent?)`, `Reset()`, `OnChanged(fn)`, `Set
 | `Buttons` | list of `{ Title, Icon, Style, Confirm, Callback }` | `SetButtonTitle(i, text)`, `SetButtonLocked(i, bool)` |
 | `Slider` | `Min`, `Max`, `Default`, `Step` or `Rounding`, `Prefix`, `Suffix`, `Format(v)`, `Input` (editable value, default on), `Buttons` (−/+), `Icons = { From, To }`, `ShowRange`, `Live` (default on) | `SetMin`, `SetMax` |
 | `Range` | as Slider, `Default = { lo, hi }`, `MinGap`; callback gets `(lo, hi)` | |
-| `Dropdown` | `Values` (strings or `{ Title, Value, Description, Icon }`), `Default`, `Multi`, `Search` (auto above 8), `AllowNone`, `Placeholder`, `MaxVisible` | `Refresh(values, keep?)`, `Add`, `Remove`, `Toggle(value)`, `IsSelected`, `GetValues` |
+| `Dropdown` | `Values` (strings or `{ Title, Value, Description, Icon }`), `Default`, `Multi`, `Search` (auto above 8), `AllowNone`, `Placeholder`, `MaxVisible`, `Action = { Icon, Tooltip, Callback(value) }` (a square button after the field) | `Refresh(values, keep?)`, `Add`, `Remove`, `Toggle(value)`, `IsSelected`, `GetValues` |
 | `Input` | `Default`, `Placeholder`, `Numeric`, `Min`, `Max`, `Step`, `MaxLength`, `Finished` (default on), `Validate(text) -> ok, message`, `Icon`, `Multiline`, `Height`, `ClearOnFocus` | `Submit(text)` |
 | `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, `Listed`, capture options (below), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
 | `ColorPicker` | `Default`, `Transparency` (enables alpha), `Rainbow`; callback gets `(color, transparency)` | `SetRainbow(bool)` |
@@ -250,8 +257,11 @@ Capture options, per bind (`Keybind = { … }` on toggles, modules and buttons, 
 | `AllowMouse = false` | right and middle mouse button cannot be bound |
 | `Blacklist = { "W", Enum.KeyCode.A, … }` | keys that are ignored while binding |
 | `CanUnbind = false` | the bind always keeps a key; Backspace and "Clear key" do nothing |
+| `ComboKeys = n` | keys per bind, e.g. 2 allows `LCtrl + L` and `LCtrl + LShift`; at n keys the bind ends |
 
-The global defaults for `ClickOutside`, `Escape` and mouse buttons live in Settings → Behaviour.
+Combo keys are stored as `"LeftControl+L"` (`Binding.Key`), shown as `LCtrl + L`.
+
+The global defaults for `ClickOutside`, `Escape`, mouse buttons and combo keys live in Settings → Behaviour.
 
 ## Themes
 

@@ -120,7 +120,8 @@ function Widgets.KeyPill(parent, binding, props)
     })
 
     local function paint()
-        label.Text = binding.Capturing and "..." or Util.KeyLabel(binding.Key)
+        label.Text = binding.Capturing and (binding.Pending and (Util.KeyLabel(binding.Pending) .. " + ...") or "...")
+            or Util.KeyLabel(binding.Key)
         local showMode = not binding.Capturing and binding.Key and #binding.Modes > 1 and binding.Mode ~= binding.Modes[1]
         mode.Visible = showMode and true or false
         mode.Text = showMode and binding.Mode:sub(1, 1) or ""
@@ -133,10 +134,8 @@ function Widgets.KeyPill(parent, binding, props)
     table.insert(connections, binding.Changed:Connect(paint))
     table.insert(connections, Tooltip.Attach(pill, function()
         if binding.Capturing then return "Press a key · Esc cancels · Backspace clears" end
-        local touch = Util.Touch()
-        local text = touch and "Tap to bind" or "Click to bind"
-        if #binding.Modes > 1 then text ..= touch and " · hold for mode" or " · right-click for mode" end
-        return text .. (binding.Key and ("\nMode: " .. binding.Mode) or "")
+        if #binding.Modes < 2 then return nil end
+        return Util.Touch() and "Hold for mode" or "Right-click for mode"
     end))
 
     table.insert(connections, Util.Hover(pill, function(on) hover = on; Theme.Refresh(pill, 0.12) end))

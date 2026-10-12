@@ -107,19 +107,19 @@ function Panel.new(window, def)
         Util.Corner(5, button)
         local image = Util.Icon(icon, { Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(5, 5), Color = "TextDim", Parent = button })
         Util.Feedback(button, state)
-        self.Maid:Give(Tooltip.Attach(button, tip))
+        if tip then self.Maid:Give(Tooltip.Attach(button, tip)) end
         button.MouseButton1Click:Connect(fn)
         return button, image
     end
     if def.Collapsible ~= false then
         local _, image
-        _, image = action("chevron-up", 1, "Collapse", function()
+        _, image = action("chevron-up", 1, nil, function()
             self:SetCollapsed(not self.Collapsed)
             image.Image = Util.IconId(self.Collapsed and "chevron-down" or "chevron-up")
         end)
     end
     if def.Closable ~= false then
-        action("x", 2, "Close", function()
+        action("x", 2, nil, function()
             self:SetVisible(false)
             Util.Safe(def.OnClose)
             self.Closed:Fire()

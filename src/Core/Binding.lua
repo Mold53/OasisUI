@@ -30,6 +30,7 @@ function Binding.new(options)
             CanUnbind = capture.CanUnbind,
             ClickOutside = capture.ClickOutside,
             Escape = capture.Escape,
+            ComboKeys = capture.ComboKeys,
         },
     }, Binding)
     if not table.find(self.Modes, self.Mode) then self.Mode = self.Modes[1] end
@@ -59,9 +60,17 @@ end
 function Binding:Capture()
     if self.Capturing then return end
     self.Capturing = true
+    self.Pending = nil
     self.Changed:Fire()
+    local options = table.clone(self.CaptureOptions)
+    -- the held part of a combo, shown while the next key is awaited
+    options.Progress = function(text)
+        self.Pending = text
+        self.Changed:Fire()
+    end
     Keybinds.Capture(function(result)
         self.Capturing = false
+        self.Pending = nil
         if result == false then
             self.Key = nil
         elseif result then
@@ -69,7 +78,7 @@ function Binding:Capture()
         end
         self.Held = false
         self.Changed:Fire()
-    end, self.CaptureOptions)
+    end, options)
 end
 
 function Binding:SetMode(mode)

@@ -141,6 +141,11 @@ function Module:SetVisible(visible)
     self.StateChanged:Fire("Visible")
 end
 
+-- Settings > Layout can hide card descriptions for a calmer, smaller window
+function Module:_showDescription()
+    return self.Description ~= nil and self.Description ~= "" and self.Window.Interface.Descriptions ~= false
+end
+
 function Module:Matches(query)
     local text = (self.Title .. " " .. (self.Description or "")):lower()
     return text:find(query, 1, true) ~= nil or self:_matchesChildren(query)
@@ -341,7 +346,7 @@ function Module:Render(parent, maid, view)
         TextWrapped = true,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = self.Description ~= nil and self.Description ~= "",
+        Visible = self:_showDescription(),
         LayoutOrder = 2,
         Parent = stack,
     })
@@ -388,7 +393,6 @@ function Module:Render(parent, maid, view)
             Theme = { ImageColor3 = "TextMuted" },
             Parent = controls,
         })
-        maid:Give(Tooltip.Attach(chevron, function() return self.Expanded and "Hide settings" or "Show settings" end))
         local switchHit = Util.New("TextButton", { BackgroundTransparency = 1, Size = UDim2.fromOffset(30, 16), LayoutOrder = 2, Parent = controls })
         local _, paint = Widgets.Switch(switchHit, { AnchorPoint = Vector2.zero, Position = UDim2.fromScale(0, 0) })
         switchPaint = paint
@@ -465,14 +469,15 @@ function Module:Render(parent, maid, view)
     end
     paintBody(false)
     maid:Give(options:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        if animating == 0 and self.Expanded then body.Size = UDim2.new(1, 0, 0, height()) end
+        -- no children: the padding alone would open an empty strip under the header
+        if animating == 0 and self.Expanded and #self.Children > 0 then body.Size = UDim2.new(1, 0, 0, height()) end
     end))
 
     local function paint(what)
         if what == nil or what == "Title" then title.Text = self.Title end
         if what == nil or what == "Description" then
             desc.Text = self.Description or ""
-            desc.Visible = self.Description ~= nil and self.Description ~= ""
+            desc.Visible = self:_showDescription()
         end
         if what == nil or what == "Locked" then
             lockIcon.Visible = self.Locked

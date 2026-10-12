@@ -325,6 +325,11 @@ local KEY_LABELS = {
 
 function Util.KeyLabel(name)
     if not name then return "None" end
+    if name:find("+", 1, true) then
+        local parts = string.split(name, "+")
+        for index, part in parts do parts[index] = Util.KeyLabel(part) end
+        return table.concat(parts, " + ")
+    end
     if KEY_LABELS[name] then return KEY_LABELS[name] end
     local pad = name:match("^Keypad(.+)$")
     if pad then return "Num" .. (KEY_LABELS[pad] or pad) end

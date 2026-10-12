@@ -68,30 +68,73 @@ function Drag.Follow(input, onMove, onEnd, owner)
     end
 end
 
+-- every attached handle -> the frame it moves; a press starts only the one drawn on top, so stacked
+-- panels move one at a time
+local handles = {}
+
+-- the handle whose moved frame is drawn on top at point (AbsolutePosition space)
+function Drag.Topmost(candidates, point)
+    if #candidates < 2 then return candidates[1] end
+    local root = candidates[1]:FindFirstAncestorWhichIsA("BasePlayerGui")
+    if root then
+        local inset = Services.GuiService:GetGuiInset()
+        local ok, objects = pcall(root.GetGuiObjectsAtPosition, root, point.X + inset.X, point.Y + inset.Y)
+        if ok then
+            -- topmost first; any part of a moved frame (its background too) covers what lies below
+            for _, object in objects do
+                for _, candidate in candidates do
+                    local target = handles[candidate] or candidate
+                    if object == target or object:IsDescendantOf(target) then return candidate end
+                end
+            end
+        end
+    end
+    return candidates[#candidates]
+end
+
 -- moves `target` (offset position) while `handle` is dragged; keeps `margin` px on screen
 function Drag.Attach(handle, target, options)
     options = options or {}
     local margin = options.Margin or 48
-    return handle.InputBegan:Connect(function(input)
+    handles[handle] = target
+    local connection = handle.InputBegan:Connect(function(input)
         if not Util.IsPress(input) then return end
         if options.Enabled and not options.Enabled() then return end
-        local origin = target.Position
-        Drag.Follow(input, function(_, delta)
-            local scale = options.Scale and options.Scale() or 1
-            local goal = UDim2.new(origin.X.Scale, origin.X.Offset + delta.X / scale, origin.Y.Scale, origin.Y.Offset + delta.Y / scale)
-            target.Position = goal
-            if options.Clamp ~= false then
-                local viewport = Layer.Bounds()
-                local position, size = target.AbsolutePosition, target.AbsoluteSize
-                local dx = math.clamp(position.X, margin - size.X, viewport.X - margin) - position.X
-                local dy = math.clamp(position.Y, 0, viewport.Y - margin) - position.Y
-                if dx ~= 0 or dy ~= 0 then
-                    target.Position = goal + UDim2.fromOffset(dx / scale, dy / scale)
-                end
+        local point = Util.Pointer(input)
+        local here = {}
+        for other in handles do
+            if other.Parent and Util.Shown(other) and Util.Contains(other, point) then table.insert(here, other) end
+        end
+        if #here > 1 and Drag.Topmost(here, point) ~= handle then return end
+        Drag._start(input, target, options, margin)
+    end)
+    local gone = handle.Destroying:Connect(function() handles[handle] = nil end)
+    return {
+        Disconnect = function()
+            connection:Disconnect()
+            gone:Disconnect()
+            handles[handle] = nil
+        end,
+    }
+end
+
+function Drag._start(input, target, options, margin)
+    local origin = target.Position
+    Drag.Follow(input, function(_, delta)
+        local scale = options.Scale and options.Scale() or 1
+        local goal = UDim2.new(origin.X.Scale, origin.X.Offset + delta.X / scale, origin.Y.Scale, origin.Y.Offset + delta.Y / scale)
+        target.Position = goal
+        if options.Clamp ~= false then
+            local viewport = Layer.Bounds()
+            local position, size = target.AbsolutePosition, target.AbsoluteSize
+            local dx = math.clamp(position.X, margin - size.X, viewport.X - margin) - position.X
+            local dy = math.clamp(position.Y, 0, viewport.Y - margin) - position.Y
+            if dx ~= 0 or dy ~= 0 then
+                target.Position = goal + UDim2.fromOffset(dx / scale, dy / scale)
             end
-        end, function(moved)
-            if options.OnEnd then options.OnEnd(moved) end
-        end)
+        end
+    end, function(moved)
+        if options.OnEnd then options.OnEnd(moved) end
     end)
 end
 

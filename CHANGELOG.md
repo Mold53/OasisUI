@@ -4,6 +4,33 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-12
+
+### Added
+
+- Combo keybinds: hold Ctrl, Shift or Alt (left or right) while binding and the next key completes the bind,
+  e.g. `LCtrl + L`; let go and the modifier alone is the key. The pill shows the held part while it waits.
+  `ComboKeys` (keys per bind, 1 turns combos off) per bind, as the window default `ComboKeys` and in
+  Settings → Behaviour. A press fires the most specific match, so `LCtrl + L` does not also fire `L`.
+- Dropdown `Action = { Icon, Tooltip, Callback }`: a square button right of the field.
+- Window option `SearchShortcut = false`: the search bar stays, Ctrl+F is left to the script.
+- Settings: Tooltips on/off (Behaviour) and Card descriptions on/off (Layout) for a calmer, smaller window.
+
+### Changed
+
+- Fewer always-visible hints: section descriptions, the "Backspace or Delete always clears a key" line and
+  the "Ctrl F" label in the search bar are gone; the few that explain something are short tooltips.
+- Fewer hover tooltips: none on chevrons and panel buttons; the key pill only mentions its mode menu.
+  Tooltips wait 0.5 s (`Tooltip.Delay`).
+- Settings → Menu: the notification test is a bell button next to the position dropdown, so Center and Reset
+  layout have room.
+
+### Fixed
+
+- Dragging stacked panels or overlays moved all of them; only the one drawn on top moves now.
+- Ctrl+F focused the hidden search box when the window had `Search = false`.
+- An enabled card without settings showed an empty strip under its header, taller than its neighbours.
+
 ## [1.3.0] - 2026-10-12
 
 ### Added
@@ -165,6 +192,7 @@ First public release.
 - Settings tab built from the library's own elements.
 - Build tooling: `build/bundle.mjs`, `build/icons.mjs`, `build/harness.sh`, CI and release workflows.
 
+[1.4.0]: https://github.com/Mold53/OasisUI/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/Mold53/OasisUI/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/Mold53/OasisUI/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Mold53/OasisUI/compare/v1.2.0...v1.2.1
