@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Bundle
+        run: node build/bundle.mjs
+
+      - name: dist/OasisUI.lua is up to date
+        run: git diff --exit-code -- dist/OasisUI.lua
+
+      - name: Install Luau
+        run: |
+          curl -sSL -o luau.zip https://github.com/luau-lang/luau/releases/download/0.742/luau-ubuntu.zip
+          unzip -q luau.zip -d luau
+          chmod +x luau/*
+
+      - name: Compile check
+        run: |
+          ./luau/luau-compile --null dist/OasisUI.lua
+          ./luau/luau-compile --null examples/Example.lua
