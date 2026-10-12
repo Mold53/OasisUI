@@ -3,6 +3,7 @@ local Theme = import("Core/Theme")
 local Storage = import("Core/Storage")
 local Config = import("Core/Config")
 local Notification = import("Components/Notification")
+local Tooltip = import("Components/Tooltip")
 
 -- built-in settings tab, made with the library's own elements; nothing here lands in configs
 return function(window)
@@ -27,7 +28,7 @@ return function(window)
     end
 
     -- appearance --------------------------------------------------------------
-    local look = tab:Section({ Title = "Appearance", Description = "Changes apply live and are remembered.", Icon = "palette", Side = "Left", Id = "settings/appearance" })
+    local look = tab:Section({ Title = "Appearance", Icon = "palette", Side = "Left", Id = "settings/appearance" })
 
     local palettes = {}
     for _, name in Theme.Presets.Order do table.insert(palettes, name) end
@@ -68,13 +69,12 @@ return function(window)
 
     look:Toggle({
         Title = "Fit to screen",
-        Description = "Same size on every resolution, always fully on screen.",
+        Tooltip = "Scales with the resolution and stays on screen.",
         Default = interface.FitScreen ~= false,
         Callback = function(on) window:SetFitScreen(on) end,
     })
     look:Slider({
         Title = "Interface scale",
-        Description = "On top of the screen fit.",
         Min = 50, Max = 200, Suffix = "%", Step = 5,
         Default = math.floor((tonumber(interface.Scale) or 1) * 100 + 0.5),
         Live = false,
@@ -128,6 +128,10 @@ return function(window)
         window:SetCompact(on)
         window:SaveState()
     end })
+    layout:Toggle({ Title = "Card descriptions", Default = interface.Descriptions ~= false, Callback = function(on)
+        window:SetInterface("Descriptions", on)
+        for _, module in window:Modules() do module.StateChanged:Fire("Description") end
+    end })
 
     -- keep the controls in sync when a preset or an import changes the theme
     window.Maid:Give(Theme.Changed:Connect(function()
@@ -146,7 +150,7 @@ return function(window)
 
     -- themes ------------------------------------------------------------------
     local themesDir = window.Folder .. "/themes"
-    local themes = tab:Section({ Title = "Themes", Description = "Save your look and share it.", Icon = "layers", Side = "Left", Id = "settings/themes" })
+    local themes = tab:Section({ Title = "Themes", Icon = "layers", Side = "Left", Id = "settings/themes" })
     local themeName = themes:Input({ Title = "Theme name", Placeholder = "my theme", Finished = false })
     local themeList
     local function refreshThemes()
@@ -197,7 +201,7 @@ return function(window)
 
     -- configs -----------------------------------------------------------------
     local configs = window.Config
-    local section = tab:Section({ Title = "Configs", Description = "Every flagged option and keybind.", Icon = "folder-open", Side = "Right", Id = "settings/configs" })
+    local section = tab:Section({ Title = "Configs", Icon = "folder-open", Side = "Right", Id = "settings/configs" })
     local configName = section:Input({ Title = "Config name", Placeholder = "default", Finished = false })
     local configList
     section:Buttons({
@@ -255,7 +259,7 @@ return function(window)
     })
     section:Toggle({
         Title = "Auto save",
-        Description = "Writes changes into the loaded config.",
+        Tooltip = "Saves changes into the loaded config.",
         Default = interface.AutoSave == true,
         Callback = function(on)
             configs.AutoSave = on
@@ -281,7 +285,7 @@ return function(window)
 
     -- menu --------------------------------------------------------------------
     local menu = tab:Section({ Title = "Menu", Icon = "sliders-horizontal", Side = "Right", Id = "settings/menu" })
-    menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding, Tooltip = "Opens and hides the menu." })
+    menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding })
     menu:Dropdown({
         Title = "Notifications",
         Values = { "BottomRight", "TopRight", "BottomLeft", "TopLeft" },
@@ -290,11 +294,11 @@ return function(window)
             Notification.SetPosition(position)
             window:SetInterface("NotifyPosition", position)
         end,
-    })
-    menu:Buttons({
-        { Title = "Test", Icon = "bell", Callback = function()
+        Action = { Icon = "bell", Tooltip = "Test notification", Callback = function()
             notify("Notification", "This is how messages look.", "Info")
         end },
+    })
+    menu:Buttons({
         { Title = "Center", Icon = "move", Callback = function() window:Center() end },
         { Title = "Reset layout", Icon = "layout-grid", Confirm = "Confirm", Callback = function()
             for _, other in window.Tabs do other:ResetLayout() end
@@ -307,7 +311,7 @@ return function(window)
 
     -- overlays ----------------------------------------------------------------
     local overlays = window.Overlays
-    local hud = tab:Section({ Title = "Overlays", Description = "Keybind list and watermark.", Icon = "layout-list", Side = "Right", Id = "settings/overlays" })
+    local hud = tab:Section({ Title = "Overlays", Icon = "layout-list", Side = "Right", Id = "settings/overlays" })
     local style = interface.KeybindStyle
     local function bindStyle(key)
         return function(value) overlays:SetKeybindStyle(key, value) end
@@ -319,7 +323,7 @@ return function(window)
     local listOptions = hud:Group({ Title = "Keybind list options", Icon = "keyboard" })
     listOptions:Dropdown({ Title = "Show", Values = { "All", "Active" }, Default = style.Show, Callback = bindStyle("Show") })
     listOptions:Dropdown({ Title = "Sort by", Values = { "Added", "Name", "Key", "Mode", "Active first" }, Default = style.Sort, Callback = bindStyle("Sort") })
-    listOptions:Toggle({ Title = "Group by mode", Description = "Toggle, Hold and Always under their own caption.", Default = style.Group, Callback = bindStyle("Group") })
+    listOptions:Toggle({ Title = "Group by mode", Default = style.Group, Callback = bindStyle("Group") })
     listOptions:Dropdown({ Title = "Layout", Values = overlays.Layouts, Default = style.Layout, Callback = bindStyle("Layout") })
     listOptions:Segmented({ Title = "Mode text", Values = { "Full", "Short", "Hidden" }, Default = style.ModeText, Callback = bindStyle("ModeText") })
     listOptions:Segmented({ Title = "Key style", Values = { "Pill", "Brackets", "Plain" }, Default = style.KeyStyle, Callback = bindStyle("KeyStyle") })
@@ -358,7 +362,6 @@ return function(window)
         Title = "Click outside while binding",
         Values = { "Keep", "Clear" },
         Default = interface.BindClickOutside,
-        Tooltip = "Keep leaves the old key, Clear removes it.",
         Callback = function(value)
             window:SetInterface("BindClickOutside", value)
             window:ApplyBindOptions()
@@ -375,14 +378,27 @@ return function(window)
     })
     binding:Toggle({
         Title = "Allow mouse buttons",
-        Description = "Right and middle mouse button can be bound.",
         Default = interface.BindMouse ~= false,
         Callback = function(on)
             window:SetInterface("BindMouse", on)
             window:ApplyBindOptions()
         end,
     })
-    binding:Label({ Text = "Backspace or Delete always clears a key." })
+    binding:Slider({
+        Title = "Combo keys",
+        Min = 1, Max = 4,
+        Default = interface.BindComboKeys,
+        Tooltip = "Keys per bind. 2 allows LCtrl + L.",
+        Callback = function(value)
+            window:SetInterface("BindComboKeys", value)
+            window:ApplyBindOptions()
+        end,
+    })
+    behaviour:Toggle({ Title = "Tooltips", Default = interface.Tooltips ~= false, Callback = function(on)
+        window:SetInterface("Tooltips", on)
+        Tooltip.Enabled = on
+        if not on then Tooltip.Hide() end
+    end })
     local profile = behaviour:Group({ Title = "Profile", Icon = "user-round", Opened = true })
     profile:Toggle({ Title = "Profile card", Default = interface.ShowUser ~= false, Callback = function(on)
         window:SetInterface("ShowUser", on)
@@ -392,7 +408,7 @@ return function(window)
         window:SetInterface("HideAvatar", on)
         if window.PaintUser then window.PaintUser() end
     end })
-    profile:Toggle({ Title = "Streamer mode", Description = "Hides your name in the menu.", Default = interface.HideUser, Callback = function(on)
+    profile:Toggle({ Title = "Streamer mode", Tooltip = "Hides your name.", Default = interface.HideUser, Callback = function(on)
         window:SetInterface("HideUser", on)
         if window.PaintUser then window.PaintUser() end
     end })

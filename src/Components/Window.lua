@@ -45,10 +45,13 @@ local INTERFACE = {
     BindClickOutside = "Keep",
     BindEscape = "Keep",
     BindMouse = true,
+    BindComboKeys = 3,       -- keys per bind (def.ComboKeys sets the default)
+    Tooltips = true,
 }
 
 -- def: Title, Subtitle, Icon, Folder, Size, MinSize, Theme, ThemeOverrides, Tags, ToggleKey, Search, Settings,
 --      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
+--      ComboKeys (default keys per bind, 1-4), SearchShortcut (false: no Ctrl+F),
 --      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
@@ -137,6 +140,7 @@ function Window:_loadState()
     if type(state.Interface.Scale) ~= "number" then state.Interface.Scale = nil end
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
+    if self.Def.ComboKeys then defaults.BindComboKeys = self.Def.ComboKeys end
     for key, value in defaults do
         if state.Interface[key] == nil then state.Interface[key] = value end
     end
@@ -176,6 +180,8 @@ function Window:ApplyBindOptions()
     Keybinds.Options.ClickOutside = self.Interface.BindClickOutside
     Keybinds.Options.Escape = self.Interface.BindEscape
     Keybinds.Options.Mouse = self.Interface.BindMouse ~= false
+    Keybinds.Options.ComboKeys = tonumber(self.Interface.BindComboKeys) or 3
+    Tooltip.Enabled = self.Interface.Tooltips ~= false
 end
 
 -- build -----------------------------------------------------------------------
@@ -364,16 +370,6 @@ function Window:_build()
         Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
         Parent = search,
     })
-    local hint = Util.Label({
-        Text = "Ctrl F",
-        TextSize = 10,
-        Color = "TextMuted",
-        TextXAlignment = Enum.TextXAlignment.Right,
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -9, 0.5, 0),
-        Size = UDim2.fromOffset(34, 14),
-        Parent = search,
-    })
     local clearSearch = Util.New("ImageButton", {
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -8, 0.5, 0),
@@ -389,7 +385,6 @@ function Window:_build()
     local searchToken = 0
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         local text = searchBox.Text
-        hint.Visible = text == ""
         clearSearch.Visible = text ~= ""
         searchToken += 1
         local mine = searchToken
@@ -399,6 +394,8 @@ function Window:_build()
     end)
     clearSearch.MouseButton1Click:Connect(function() searchBox.Text = "" end)
     self.Maid:Give(UIS.InputBegan:Connect(function(input)
+        -- SearchShortcut = false keeps the bar but frees Ctrl+F
+        if def.Search == false or def.SearchShortcut == false then return end
         if input.KeyCode == Enum.KeyCode.F and root.Visible and not self.Minimized
             and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
             task.defer(function() searchBox:CaptureFocus() end)

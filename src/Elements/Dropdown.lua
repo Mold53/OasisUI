@@ -4,6 +4,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Row = import("Components/Row")
 local Popup = import("Components/Popup")
+local Tooltip = import("Components/Tooltip")
 
 -- def: Title, Values = { "A", { Title, Value, Description, Icon } }, Default, Multi, Search (true / false, auto above 8),
 --      AllowNone, Placeholder, MaxVisible, Callback(value | list)
@@ -396,7 +397,17 @@ end
 
 function Dropdown:Render(parent, maid)
     local row = Row.new(self, parent, maid, { Below = true })
-    local field = Row.Field(row.Below, { Button = true, Size = UDim2.new(1, 0, 0, 28) })
+    local action = self.Def.Action
+    local field = Row.Field(row.Below, { Button = true, Size = UDim2.new(1, action and -34 or 0, 0, 28) })
+    if action then
+        -- Action = { Icon, Tooltip, Callback }: a square button after the field, e.g. a test or refresh
+        local button = Row.Field(row.Below, { Button = true, Size = UDim2.fromOffset(28, 28), AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0) })
+        Util.Icon(action.Icon or "play", { Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Color = "TextDim", Parent = button })
+        if action.Tooltip then maid:Give(Tooltip.Attach(button, action.Tooltip)) end
+        button.MouseButton1Click:Connect(function()
+            if not self.Locked then Util.Safe(action.Callback, self.Value) end
+        end)
+    end
     local text = Util.Label({
         TextSize = 12,
         Weight = Enum.FontWeight.Medium,

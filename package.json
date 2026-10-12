@@ -1,6 +1,6 @@
 {
     "name": "oasis-ui",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "Roblox UI library with module cards, rearrangeable columns, sub-tabs, favorites, search, a live theme editor and a config manager",
     "license": "MIT",
     "author": "Mold53",

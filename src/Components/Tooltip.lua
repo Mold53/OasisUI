@@ -7,6 +7,8 @@ local Layer = import("Components/Layer")
 -- touch: placed once at the finger, hidden after a moment or by the next touch
 local Tooltip = {}
 local TOUCH_TIME = 2.5
+Tooltip.Delay = 0.5                                  -- hover time before a tooltip shows
+Tooltip.Enabled = true
 local frame, label, follow, touchHide
 local token = 0
 -- while a popup is open only its own controls show tooltips (set by Popup)
@@ -76,10 +78,10 @@ end
 -- touch has no hover: taps on info icons and locks call Tooltip.Show instead
 function Tooltip.Attach(gui, text)
     local enter = gui.MouseEnter:Connect(function()
-        if Util.Touch() then return end
+        if Util.Touch() or not Tooltip.Enabled then return end
         token += 1
         local mine = token
-        task.delay(0.35, function()
+        task.delay(Tooltip.Delay, function()
             if mine ~= token then return end
             local owner = Tooltip.Owner
             if owner and owner.Parent and not gui:IsDescendantOf(owner) then return end
@@ -105,6 +107,7 @@ Tooltip.Hide = hide
 
 -- shows text right away, e.g. for a tap on an info icon
 function Tooltip.Show(text)
+    if not Tooltip.Enabled then return end
     token += 1
     if type(text) == "string" and text ~= "" then show(text) end
 end

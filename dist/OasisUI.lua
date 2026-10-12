@@ -1,4 +1,4 @@
--- OasisUI v1.3.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.4.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -19,6 +19,7 @@ local Theme = import("Core/Theme")
 local Storage = import("Core/Storage")
 local Config = import("Core/Config")
 local Notification = import("Components/Notification")
+local Tooltip = import("Components/Tooltip")
 
 -- built-in settings tab, made with the library's own elements; nothing here lands in configs
 return function(window)
@@ -43,7 +44,7 @@ return function(window)
     end
 
     -- appearance --------------------------------------------------------------
-    local look = tab:Section({ Title = "Appearance", Description = "Changes apply live and are remembered.", Icon = "palette", Side = "Left", Id = "settings/appearance" })
+    local look = tab:Section({ Title = "Appearance", Icon = "palette", Side = "Left", Id = "settings/appearance" })
 
     local palettes = {}
     for _, name in Theme.Presets.Order do table.insert(palettes, name) end
@@ -84,13 +85,12 @@ return function(window)
 
     look:Toggle({
         Title = "Fit to screen",
-        Description = "Same size on every resolution, always fully on screen.",
+        Tooltip = "Scales with the resolution and stays on screen.",
         Default = interface.FitScreen ~= false,
         Callback = function(on) window:SetFitScreen(on) end,
     })
     look:Slider({
         Title = "Interface scale",
-        Description = "On top of the screen fit.",
         Min = 50, Max = 200, Suffix = "%", Step = 5,
         Default = math.floor((tonumber(interface.Scale) or 1) * 100 + 0.5),
         Live = false,
@@ -144,6 +144,10 @@ return function(window)
         window:SetCompact(on)
         window:SaveState()
     end })
+    layout:Toggle({ Title = "Card descriptions", Default = interface.Descriptions ~= false, Callback = function(on)
+        window:SetInterface("Descriptions", on)
+        for _, module in window:Modules() do module.StateChanged:Fire("Description") end
+    end })
 
     -- keep the controls in sync when a preset or an import changes the theme
     window.Maid:Give(Theme.Changed:Connect(function()
@@ -162,7 +166,7 @@ return function(window)
 
     -- themes ------------------------------------------------------------------
     local themesDir = window.Folder .. "/themes"
-    local themes = tab:Section({ Title = "Themes", Description = "Save your look and share it.", Icon = "layers", Side = "Left", Id = "settings/themes" })
+    local themes = tab:Section({ Title = "Themes", Icon = "layers", Side = "Left", Id = "settings/themes" })
     local themeName = themes:Input({ Title = "Theme name", Placeholder = "my theme", Finished = false })
     local themeList
     local function refreshThemes()
@@ -213,7 +217,7 @@ return function(window)
 
     -- configs -----------------------------------------------------------------
     local configs = window.Config
-    local section = tab:Section({ Title = "Configs", Description = "Every flagged option and keybind.", Icon = "folder-open", Side = "Right", Id = "settings/configs" })
+    local section = tab:Section({ Title = "Configs", Icon = "folder-open", Side = "Right", Id = "settings/configs" })
     local configName = section:Input({ Title = "Config name", Placeholder = "default", Finished = false })
     local configList
     section:Buttons({
@@ -271,7 +275,7 @@ return function(window)
     })
     section:Toggle({
         Title = "Auto save",
-        Description = "Writes changes into the loaded config.",
+        Tooltip = "Saves changes into the loaded config.",
         Default = interface.AutoSave == true,
         Callback = function(on)
             configs.AutoSave = on
@@ -297,7 +301,7 @@ return function(window)
 
     -- menu --------------------------------------------------------------------
     local menu = tab:Section({ Title = "Menu", Icon = "sliders-horizontal", Side = "Right", Id = "settings/menu" })
-    menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding, Tooltip = "Opens and hides the menu." })
+    menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding })
     menu:Dropdown({
         Title = "Notifications",
         Values = { "BottomRight", "TopRight", "BottomLeft", "TopLeft" },
@@ -306,11 +310,11 @@ return function(window)
             Notification.SetPosition(position)
             window:SetInterface("NotifyPosition", position)
         end,
-    })
-    menu:Buttons({
-        { Title = "Test", Icon = "bell", Callback = function()
+        Action = { Icon = "bell", Tooltip = "Test notification", Callback = function()
             notify("Notification", "This is how messages look.", "Info")
         end },
+    })
+    menu:Buttons({
         { Title = "Center", Icon = "move", Callback = function() window:Center() end },
         { Title = "Reset layout", Icon = "layout-grid", Confirm = "Confirm", Callback = function()
             for _, other in window.Tabs do other:ResetLayout() end
@@ -323,7 +327,7 @@ return function(window)
 
     -- overlays ----------------------------------------------------------------
     local overlays = window.Overlays
-    local hud = tab:Section({ Title = "Overlays", Description = "Keybind list and watermark.", Icon = "layout-list", Side = "Right", Id = "settings/overlays" })
+    local hud = tab:Section({ Title = "Overlays", Icon = "layout-list", Side = "Right", Id = "settings/overlays" })
     local style = interface.KeybindStyle
     local function bindStyle(key)
         return function(value) overlays:SetKeybindStyle(key, value) end
@@ -335,7 +339,7 @@ return function(window)
     local listOptions = hud:Group({ Title = "Keybind list options", Icon = "keyboard" })
     listOptions:Dropdown({ Title = "Show", Values = { "All", "Active" }, Default = style.Show, Callback = bindStyle("Show") })
     listOptions:Dropdown({ Title = "Sort by", Values = { "Added", "Name", "Key", "Mode", "Active first" }, Default = style.Sort, Callback = bindStyle("Sort") })
-    listOptions:Toggle({ Title = "Group by mode", Description = "Toggle, Hold and Always under their own caption.", Default = style.Group, Callback = bindStyle("Group") })
+    listOptions:Toggle({ Title = "Group by mode", Default = style.Group, Callback = bindStyle("Group") })
     listOptions:Dropdown({ Title = "Layout", Values = overlays.Layouts, Default = style.Layout, Callback = bindStyle("Layout") })
     listOptions:Segmented({ Title = "Mode text", Values = { "Full", "Short", "Hidden" }, Default = style.ModeText, Callback = bindStyle("ModeText") })
     listOptions:Segmented({ Title = "Key style", Values = { "Pill", "Brackets", "Plain" }, Default = style.KeyStyle, Callback = bindStyle("KeyStyle") })
@@ -374,7 +378,6 @@ return function(window)
         Title = "Click outside while binding",
         Values = { "Keep", "Clear" },
         Default = interface.BindClickOutside,
-        Tooltip = "Keep leaves the old key, Clear removes it.",
         Callback = function(value)
             window:SetInterface("BindClickOutside", value)
             window:ApplyBindOptions()
@@ -391,14 +394,27 @@ return function(window)
     })
     binding:Toggle({
         Title = "Allow mouse buttons",
-        Description = "Right and middle mouse button can be bound.",
         Default = interface.BindMouse ~= false,
         Callback = function(on)
             window:SetInterface("BindMouse", on)
             window:ApplyBindOptions()
         end,
     })
-    binding:Label({ Text = "Backspace or Delete always clears a key." })
+    binding:Slider({
+        Title = "Combo keys",
+        Min = 1, Max = 4,
+        Default = interface.BindComboKeys,
+        Tooltip = "Keys per bind. 2 allows LCtrl + L.",
+        Callback = function(value)
+            window:SetInterface("BindComboKeys", value)
+            window:ApplyBindOptions()
+        end,
+    })
+    behaviour:Toggle({ Title = "Tooltips", Default = interface.Tooltips ~= false, Callback = function(on)
+        window:SetInterface("Tooltips", on)
+        Tooltip.Enabled = on
+        if not on then Tooltip.Hide() end
+    end })
     local profile = behaviour:Group({ Title = "Profile", Icon = "user-round", Opened = true })
     profile:Toggle({ Title = "Profile card", Default = interface.ShowUser ~= false, Callback = function(on)
         window:SetInterface("ShowUser", on)
@@ -408,7 +424,7 @@ return function(window)
         window:SetInterface("HideAvatar", on)
         if window.PaintUser then window.PaintUser() end
     end })
-    profile:Toggle({ Title = "Streamer mode", Description = "Hides your name in the menu.", Default = interface.HideUser, Callback = function(on)
+    profile:Toggle({ Title = "Streamer mode", Tooltip = "Hides your name.", Default = interface.HideUser, Callback = function(on)
         window:SetInterface("HideUser", on)
         if window.PaintUser then window.PaintUser() end
     end })
@@ -1284,6 +1300,11 @@ function Module:SetVisible(visible)
     self.StateChanged:Fire("Visible")
 end
 
+-- Settings > Layout can hide card descriptions for a calmer, smaller window
+function Module:_showDescription()
+    return self.Description ~= nil and self.Description ~= "" and self.Window.Interface.Descriptions ~= false
+end
+
 function Module:Matches(query)
     local text = (self.Title .. " " .. (self.Description or "")):lower()
     return text:find(query, 1, true) ~= nil or self:_matchesChildren(query)
@@ -1484,7 +1505,7 @@ function Module:Render(parent, maid, view)
         TextWrapped = true,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = self.Description ~= nil and self.Description ~= "",
+        Visible = self:_showDescription(),
         LayoutOrder = 2,
         Parent = stack,
     })
@@ -1531,7 +1552,6 @@ function Module:Render(parent, maid, view)
             Theme = { ImageColor3 = "TextMuted" },
             Parent = controls,
         })
-        maid:Give(Tooltip.Attach(chevron, function() return self.Expanded and "Hide settings" or "Show settings" end))
         local switchHit = Util.New("TextButton", { BackgroundTransparency = 1, Size = UDim2.fromOffset(30, 16), LayoutOrder = 2, Parent = controls })
         local _, paint = Widgets.Switch(switchHit, { AnchorPoint = Vector2.zero, Position = UDim2.fromScale(0, 0) })
         switchPaint = paint
@@ -1608,14 +1628,15 @@ function Module:Render(parent, maid, view)
     end
     paintBody(false)
     maid:Give(options:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-        if animating == 0 and self.Expanded then body.Size = UDim2.new(1, 0, 0, height()) end
+        -- no children: the padding alone would open an empty strip under the header
+        if animating == 0 and self.Expanded and #self.Children > 0 then body.Size = UDim2.new(1, 0, 0, height()) end
     end))
 
     local function paint(what)
         if what == nil or what == "Title" then title.Text = self.Title end
         if what == nil or what == "Description" then
             desc.Text = self.Description or ""
-            desc.Visible = self.Description ~= nil and self.Description ~= ""
+            desc.Visible = self:_showDescription()
         end
         if what == nil or what == "Locked" then
             lockIcon.Visible = self.Locked
@@ -2741,19 +2762,19 @@ function Panel.new(window, def)
         Util.Corner(5, button)
         local image = Util.Icon(icon, { Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(5, 5), Color = "TextDim", Parent = button })
         Util.Feedback(button, state)
-        self.Maid:Give(Tooltip.Attach(button, tip))
+        if tip then self.Maid:Give(Tooltip.Attach(button, tip)) end
         button.MouseButton1Click:Connect(fn)
         return button, image
     end
     if def.Collapsible ~= false then
         local _, image
-        _, image = action("chevron-up", 1, "Collapse", function()
+        _, image = action("chevron-up", 1, nil, function()
             self:SetCollapsed(not self.Collapsed)
             image.Image = Util.IconId(self.Collapsed and "chevron-down" or "chevron-up")
         end)
     end
     if def.Closable ~= false then
-        action("x", 2, "Close", function()
+        action("x", 2, nil, function()
             self:SetVisible(false)
             Util.Safe(def.OnClose)
             self.Closed:Fire()
@@ -3485,6 +3506,8 @@ local Layer = import("Components/Layer")
 -- touch: placed once at the finger, hidden after a moment or by the next touch
 local Tooltip = {}
 local TOUCH_TIME = 2.5
+Tooltip.Delay = 0.5                                  -- hover time before a tooltip shows
+Tooltip.Enabled = true
 local frame, label, follow, touchHide
 local token = 0
 -- while a popup is open only its own controls show tooltips (set by Popup)
@@ -3554,10 +3577,10 @@ end
 -- touch has no hover: taps on info icons and locks call Tooltip.Show instead
 function Tooltip.Attach(gui, text)
     local enter = gui.MouseEnter:Connect(function()
-        if Util.Touch() then return end
+        if Util.Touch() or not Tooltip.Enabled then return end
         token += 1
         local mine = token
-        task.delay(0.35, function()
+        task.delay(Tooltip.Delay, function()
             if mine ~= token then return end
             local owner = Tooltip.Owner
             if owner and owner.Parent and not gui:IsDescendantOf(owner) then return end
@@ -3583,6 +3606,7 @@ Tooltip.Hide = hide
 
 -- shows text right away, e.g. for a tap on an info icon
 function Tooltip.Show(text)
+    if not Tooltip.Enabled then return end
     token += 1
     if type(text) == "string" and text ~= "" then show(text) end
 end
@@ -3713,7 +3737,8 @@ function Widgets.KeyPill(parent, binding, props)
     })
 
     local function paint()
-        label.Text = binding.Capturing and "..." or Util.KeyLabel(binding.Key)
+        label.Text = binding.Capturing and (binding.Pending and (Util.KeyLabel(binding.Pending) .. " + ...") or "...")
+            or Util.KeyLabel(binding.Key)
         local showMode = not binding.Capturing and binding.Key and #binding.Modes > 1 and binding.Mode ~= binding.Modes[1]
         mode.Visible = showMode and true or false
         mode.Text = showMode and binding.Mode:sub(1, 1) or ""
@@ -3726,10 +3751,8 @@ function Widgets.KeyPill(parent, binding, props)
     table.insert(connections, binding.Changed:Connect(paint))
     table.insert(connections, Tooltip.Attach(pill, function()
         if binding.Capturing then return "Press a key · Esc cancels · Backspace clears" end
-        local touch = Util.Touch()
-        local text = touch and "Tap to bind" or "Click to bind"
-        if #binding.Modes > 1 then text ..= touch and " · hold for mode" or " · right-click for mode" end
-        return text .. (binding.Key and ("\nMode: " .. binding.Mode) or "")
+        if #binding.Modes < 2 then return nil end
+        return Util.Touch() and "Hold for mode" or "Right-click for mode"
     end))
 
     table.insert(connections, Util.Hover(pill, function(on) hover = on; Theme.Refresh(pill, 0.12) end))
@@ -3817,10 +3840,13 @@ local INTERFACE = {
     BindClickOutside = "Keep",
     BindEscape = "Keep",
     BindMouse = true,
+    BindComboKeys = 3,       -- keys per bind (def.ComboKeys sets the default)
+    Tooltips = true,
 }
 
 -- def: Title, Subtitle, Icon, Folder, Size, MinSize, Theme, ThemeOverrides, Tags, ToggleKey, Search, Settings,
 --      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
+--      ComboKeys (default keys per bind, 1-4), SearchShortcut (false: no Ctrl+F),
 --      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
@@ -3909,6 +3935,7 @@ function Window:_loadState()
     if type(state.Interface.Scale) ~= "number" then state.Interface.Scale = nil end
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
+    if self.Def.ComboKeys then defaults.BindComboKeys = self.Def.ComboKeys end
     for key, value in defaults do
         if state.Interface[key] == nil then state.Interface[key] = value end
     end
@@ -3948,6 +3975,8 @@ function Window:ApplyBindOptions()
     Keybinds.Options.ClickOutside = self.Interface.BindClickOutside
     Keybinds.Options.Escape = self.Interface.BindEscape
     Keybinds.Options.Mouse = self.Interface.BindMouse ~= false
+    Keybinds.Options.ComboKeys = tonumber(self.Interface.BindComboKeys) or 3
+    Tooltip.Enabled = self.Interface.Tooltips ~= false
 end
 
 -- build -----------------------------------------------------------------------
@@ -4136,16 +4165,6 @@ function Window:_build()
         Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
         Parent = search,
     })
-    local hint = Util.Label({
-        Text = "Ctrl F",
-        TextSize = 10,
-        Color = "TextMuted",
-        TextXAlignment = Enum.TextXAlignment.Right,
-        AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -9, 0.5, 0),
-        Size = UDim2.fromOffset(34, 14),
-        Parent = search,
-    })
     local clearSearch = Util.New("ImageButton", {
         AnchorPoint = Vector2.new(1, 0.5),
         Position = UDim2.new(1, -8, 0.5, 0),
@@ -4161,7 +4180,6 @@ function Window:_build()
     local searchToken = 0
     searchBox:GetPropertyChangedSignal("Text"):Connect(function()
         local text = searchBox.Text
-        hint.Visible = text == ""
         clearSearch.Visible = text ~= ""
         searchToken += 1
         local mine = searchToken
@@ -4171,6 +4189,8 @@ function Window:_build()
     end)
     clearSearch.MouseButton1Click:Connect(function() searchBox.Text = "" end)
     self.Maid:Give(UIS.InputBegan:Connect(function(input)
+        -- SearchShortcut = false keeps the bar but frees Ctrl+F
+        if def.Search == false or def.SearchShortcut == false then return end
         if input.KeyCode == Enum.KeyCode.F and root.Visible and not self.Minimized
             and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
             task.defer(function() searchBox:CaptureFocus() end)
@@ -4978,6 +4998,7 @@ function Binding.new(options)
             CanUnbind = capture.CanUnbind,
             ClickOutside = capture.ClickOutside,
             Escape = capture.Escape,
+            ComboKeys = capture.ComboKeys,
         },
     }, Binding)
     if not table.find(self.Modes, self.Mode) then self.Mode = self.Modes[1] end
@@ -5007,9 +5028,17 @@ end
 function Binding:Capture()
     if self.Capturing then return end
     self.Capturing = true
+    self.Pending = nil
     self.Changed:Fire()
+    local options = table.clone(self.CaptureOptions)
+    -- the held part of a combo, shown while the next key is awaited
+    options.Progress = function(text)
+        self.Pending = text
+        self.Changed:Fire()
+    end
     Keybinds.Capture(function(result)
         self.Capturing = false
+        self.Pending = nil
         if result == false then
             self.Key = nil
         elseif result then
@@ -5017,7 +5046,7 @@ function Binding:Capture()
         end
         self.Held = false
         self.Changed:Fire()
-    end, self.CaptureOptions)
+    end, options)
 end
 
 function Binding:SetMode(mode)
@@ -5300,30 +5329,73 @@ function Drag.Follow(input, onMove, onEnd, owner)
     end
 end
 
+-- every attached handle -> the frame it moves; a press starts only the one drawn on top, so stacked
+-- panels move one at a time
+local handles = {}
+
+-- the handle whose moved frame is drawn on top at point (AbsolutePosition space)
+function Drag.Topmost(candidates, point)
+    if #candidates < 2 then return candidates[1] end
+    local root = candidates[1]:FindFirstAncestorWhichIsA("BasePlayerGui")
+    if root then
+        local inset = Services.GuiService:GetGuiInset()
+        local ok, objects = pcall(root.GetGuiObjectsAtPosition, root, point.X + inset.X, point.Y + inset.Y)
+        if ok then
+            -- topmost first; any part of a moved frame (its background too) covers what lies below
+            for _, object in objects do
+                for _, candidate in candidates do
+                    local target = handles[candidate] or candidate
+                    if object == target or object:IsDescendantOf(target) then return candidate end
+                end
+            end
+        end
+    end
+    return candidates[#candidates]
+end
+
 -- moves `target` (offset position) while `handle` is dragged; keeps `margin` px on screen
 function Drag.Attach(handle, target, options)
     options = options or {}
     local margin = options.Margin or 48
-    return handle.InputBegan:Connect(function(input)
+    handles[handle] = target
+    local connection = handle.InputBegan:Connect(function(input)
         if not Util.IsPress(input) then return end
         if options.Enabled and not options.Enabled() then return end
-        local origin = target.Position
-        Drag.Follow(input, function(_, delta)
-            local scale = options.Scale and options.Scale() or 1
-            local goal = UDim2.new(origin.X.Scale, origin.X.Offset + delta.X / scale, origin.Y.Scale, origin.Y.Offset + delta.Y / scale)
-            target.Position = goal
-            if options.Clamp ~= false then
-                local viewport = Layer.Bounds()
-                local position, size = target.AbsolutePosition, target.AbsoluteSize
-                local dx = math.clamp(position.X, margin - size.X, viewport.X - margin) - position.X
-                local dy = math.clamp(position.Y, 0, viewport.Y - margin) - position.Y
-                if dx ~= 0 or dy ~= 0 then
-                    target.Position = goal + UDim2.fromOffset(dx / scale, dy / scale)
-                end
+        local point = Util.Pointer(input)
+        local here = {}
+        for other in handles do
+            if other.Parent and Util.Shown(other) and Util.Contains(other, point) then table.insert(here, other) end
+        end
+        if #here > 1 and Drag.Topmost(here, point) ~= handle then return end
+        Drag._start(input, target, options, margin)
+    end)
+    local gone = handle.Destroying:Connect(function() handles[handle] = nil end)
+    return {
+        Disconnect = function()
+            connection:Disconnect()
+            gone:Disconnect()
+            handles[handle] = nil
+        end,
+    }
+end
+
+function Drag._start(input, target, options, margin)
+    local origin = target.Position
+    Drag.Follow(input, function(_, delta)
+        local scale = options.Scale and options.Scale() or 1
+        local goal = UDim2.new(origin.X.Scale, origin.X.Offset + delta.X / scale, origin.Y.Scale, origin.Y.Offset + delta.Y / scale)
+        target.Position = goal
+        if options.Clamp ~= false then
+            local viewport = Layer.Bounds()
+            local position, size = target.AbsolutePosition, target.AbsoluteSize
+            local dx = math.clamp(position.X, margin - size.X, viewport.X - margin) - position.X
+            local dy = math.clamp(position.Y, 0, viewport.Y - margin) - position.Y
+            if dx ~= 0 or dy ~= 0 then
+                target.Position = goal + UDim2.fromOffset(dx / scale, dy / scale)
             end
-        end, function(moved)
-            if options.OnEnd then options.OnEnd(moved) end
-        end)
+        end
+    end, function(moved)
+        if options.OnEnd then options.OnEnd(moved) end
     end)
 end
 
@@ -5546,10 +5618,25 @@ local Keybinds = {
         ClickOutside = "Keep",  -- "Keep" | "Clear": clicking elsewhere while binding
         Escape = "Keep",        -- "Keep" | "Clear"
         Mouse = true,           -- mouse buttons 2 and 3 can be bound
+        ComboKeys = 3,          -- keys per bind: 2 allows LCtrl + L, 1 turns combos off
     },
     _binds = {},
     _capture = nil,
 }
+
+-- held while binding, these wait for the next key; let go alone, they are the bind
+Keybinds.Modifiers = {
+    LeftControl = Enum.KeyCode.LeftControl, RightControl = Enum.KeyCode.RightControl,
+    LeftShift = Enum.KeyCode.LeftShift, RightShift = Enum.KeyCode.RightShift,
+    LeftAlt = Enum.KeyCode.LeftAlt, RightAlt = Enum.KeyCode.RightAlt,
+}
+
+-- "LeftControl+L" -> { "LeftControl" }, "L"
+function Keybinds.Split(name)
+    local parts = string.split(name, "+")
+    local main = table.remove(parts)
+    return parts, main
+end
 
 local MOUSE = {
     [Enum.UserInputType.MouseButton2] = "MouseButton2",
@@ -5581,6 +5668,7 @@ local function finish(result)
     if not capture then return end
     Keybinds._capture = nil
     capture.connection:Disconnect()
+    if capture.release then capture.release:Disconnect() end
     -- the captured press must not reach the dispatcher in the same frame
     task.defer(function()
         if not Keybinds._capture then Keybinds.Capturing = false end
@@ -5594,7 +5682,8 @@ local function option(options, key, global)
 end
 
 -- done(name) on a key, done(false) to clear, done(nil) to keep the old key
--- options: Blacklist = { names }, AllowMouse, CanUnbind, ClickOutside, Escape
+-- options: Blacklist = { names }, AllowMouse, CanUnbind, ClickOutside, Escape, ComboKeys,
+--          Progress(text | nil) while modifiers are held
 function Keybinds.Capture(done, options)
     if Keybinds._capture then finish(nil) end
     Keybinds.Capturing = true
@@ -5605,6 +5694,19 @@ function Keybinds.Capture(done, options)
     end
     local function clearOrKeep(setting)
         finish(if setting == "Clear" and canUnbind then false else nil)
+    end
+
+    -- combo: modifiers pressed so far, in order; the bind ends at the next key, on a release,
+    -- or when the combo is full
+    local maxKeys = math.max(1, math.floor(tonumber(option(options, "ComboKeys")) or 1))
+    local held = {}
+    local function progress()
+        if options and options.Progress then Util.Safe(options.Progress, #held > 0 and table.concat(held, "+") or nil) end
+    end
+    local function combo(last)
+        local keys = table.clone(held)
+        if last then table.insert(keys, last) end
+        return table.concat(keys, "+")
     end
 
     local capture = { done = done }
@@ -5619,16 +5721,26 @@ function Keybinds.Capture(done, options)
             elseif key == Enum.KeyCode.Backspace or key == Enum.KeyCode.Delete then
                 finish(if canUnbind then false else nil)
             elseif key ~= Enum.KeyCode.Unknown and not blacklist[key.Name] then
-                finish(key.Name)
+                if Keybinds.Modifiers[key.Name] and #held + 1 < maxKeys and not table.find(held, key.Name) then
+                    table.insert(held, key.Name)
+                    progress()
+                else
+                    finish(combo(key.Name))
+                end
             end
         elseif MOUSE[kind] then
             if option(options, "AllowMouse", "Mouse") ~= false and not blacklist[MOUSE[kind]] then
-                finish(MOUSE[kind])
+                finish(combo(MOUSE[kind]))
             end
         else
             local name = Keybinds.Name(input)
-            if name and not blacklist[name] then finish(name) end
+            if name and not blacklist[name] then finish(combo(name)) end
         end
+    end)
+    -- a held modifier let go before another key: the modifiers alone are the bind
+    capture.release = UIS.InputEnded:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        if table.find(held, input.KeyCode.Name) then finish(combo(nil)) end
     end)
     Keybinds._capture = capture
     task.delay(10, function()
@@ -5640,21 +5752,45 @@ function Keybinds.CancelCapture()
     finish(nil)
 end
 
+local function modifiersDown(keys)
+    for _, key in keys do
+        local code = Keybinds.Modifiers[key]
+        if not (code and UIS:IsKeyDown(code)) then return false end
+    end
+    return true
+end
+
+-- a press fires the binds whose last key it is and whose modifiers are held; the most specific win,
+-- so LCtrl + L does not also fire a plain L bind; a release of the last key releases them
 local function dispatch(input, release)
     local name = Keybinds.Name(input)
     if not name then return end
-    local hit = false
+    local hits, best = {}, -1
     for _, entry in table.clone(Keybinds._binds) do
-        if entry.Key() == name then
-            if release then
-                if entry.Release then Util.Safe(entry.Release) end
-            else
-                Util.Safe(entry.Press)
+        local key = entry.Key()
+        if key then
+            local modifiers, main = Keybinds.Split(key)
+            if main == name then
+                if release then
+                    table.insert(hits, entry)
+                elseif modifiersDown(modifiers) then
+                    if #modifiers > best then
+                        best, hits = #modifiers, { entry }
+                    elseif #modifiers == best then
+                        table.insert(hits, entry)
+                    end
+                end
             end
-            hit = true
         end
     end
-    if hit then Keybinds.Activity:Fire(name, not release) end
+    for _, entry in hits do
+        if release then
+            if entry.Release then Util.Safe(entry.Release) end
+        else
+            Util.Safe(entry.Press)
+        end
+    end
+    if #hits > 0 then Keybinds.Activity:Fire(name, not release) end
 end
 
 function Keybinds.Start(maid)
@@ -6423,6 +6559,11 @@ local KEY_LABELS = {
 
 function Util.KeyLabel(name)
     if not name then return "None" end
+    if name:find("+", 1, true) then
+        local parts = string.split(name, "+")
+        for index, part in parts do parts[index] = Util.KeyLabel(part) end
+        return table.concat(parts, " + ")
+    end
     if KEY_LABELS[name] then return KEY_LABELS[name] end
     local pad = name:match("^Keypad(.+)$")
     if pad then return "Num" .. (KEY_LABELS[pad] or pad) end
@@ -7476,6 +7617,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Row = import("Components/Row")
 local Popup = import("Components/Popup")
+local Tooltip = import("Components/Tooltip")
 
 -- def: Title, Values = { "A", { Title, Value, Description, Icon } }, Default, Multi, Search (true / false, auto above 8),
 --      AllowNone, Placeholder, MaxVisible, Callback(value | list)
@@ -7868,7 +8010,17 @@ end
 
 function Dropdown:Render(parent, maid)
     local row = Row.new(self, parent, maid, { Below = true })
-    local field = Row.Field(row.Below, { Button = true, Size = UDim2.new(1, 0, 0, 28) })
+    local action = self.Def.Action
+    local field = Row.Field(row.Below, { Button = true, Size = UDim2.new(1, action and -34 or 0, 0, 28) })
+    if action then
+        -- Action = { Icon, Tooltip, Callback }: a square button after the field, e.g. a test or refresh
+        local button = Row.Field(row.Below, { Button = true, Size = UDim2.fromOffset(28, 28), AnchorPoint = Vector2.new(1, 0), Position = UDim2.fromScale(1, 0) })
+        Util.Icon(action.Icon or "play", { Size = UDim2.fromOffset(14, 14), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.fromScale(0.5, 0.5), Color = "TextDim", Parent = button })
+        if action.Tooltip then maid:Give(Tooltip.Attach(button, action.Tooltip)) end
+        button.MouseButton1Click:Connect(function()
+            if not self.Locked then Util.Safe(action.Callback, self.Value) end
+        end)
+    end
     local text = Util.Label({
         TextSize = 12,
         Weight = Enum.FontWeight.Medium,
@@ -9640,5 +9792,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.3.0"
+Library.Version = "1.4.0"
 return Library

@@ -95,6 +95,10 @@ do
             OasisUI:SetTheme(name)
             event("Theme", name)
         end,
+        Action = { Icon = "shuffle", Tooltip = "Random preset", Callback = function()
+            local order = OasisUI.Theme.Presets.Order
+            OasisUI:SetTheme(order[math.random(#order)])
+        end },
     })
     quick:Buttons({
         { Title = "Random accent", Icon = "palette", Callback = function()
@@ -425,6 +429,7 @@ do
     keys:Keybind({ Title = "Clears on click outside", Description = "ClickOutside = \"Clear\"", ClickOutside = "Clear", Default = Enum.KeyCode.K, Callback = report("Clearable key") })
     keys:Keybind({ Title = "Always bound", Description = "CanUnbind = false", CanUnbind = false, Default = Enum.KeyCode.L, Callback = report("Always bound") })
     keys:Keybind({ Title = "Unbound", ChangedCallback = function(key) notify("Key changed", "Unbound → " .. tostring(key)) end })
+    keys:Keybind({ Title = "Combo", Description = "Hold LCtrl, then a key", ComboKeys = 3, Default = "LeftControl+K", Callback = report("Combo key") })
 
     local colors = Inputs:Section({ Title = "Colour picker", Icon = "palette", Side = "Right" })
     colors:ColorPicker({ Title = "Colour", Default = Color3.fromRGB(78, 132, 255), Callback = report("Colour") })
