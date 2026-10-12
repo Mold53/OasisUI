@@ -133,15 +133,14 @@ function Widgets.KeyPill(parent, binding, props)
     table.insert(connections, binding.Changed:Connect(paint))
     table.insert(connections, Tooltip.Attach(pill, function()
         if binding.Capturing then return "Press a key · Esc cancels · Backspace clears" end
-        local text = "Click to bind"
-        if #binding.Modes > 1 then text ..= " · right-click for mode" end
+        local touch = Util.Touch()
+        local text = touch and "Tap to bind" or "Click to bind"
+        if #binding.Modes > 1 then text ..= touch and " · hold for mode" or " · right-click for mode" end
         return text .. (binding.Key and ("\nMode: " .. binding.Mode) or "")
     end))
 
-    pill.MouseEnter:Connect(function() hover = true; Theme.Refresh(pill, 0.12) end)
-    pill.MouseLeave:Connect(function() hover = false; Theme.Refresh(pill, 0.12) end)
-    pill.MouseButton1Click:Connect(function() binding:Capture() end)
-    pill.MouseButton2Click:Connect(function()
+    table.insert(connections, Util.Hover(pill, function(on) hover = on; Theme.Refresh(pill, 0.12) end))
+    local function menu()
         local items: { any } = {}
         if #binding.Modes > 1 then
             for _, name in binding.Modes do
@@ -158,7 +157,14 @@ function Widgets.KeyPill(parent, binding, props)
             table.insert(items, { Title = "Clear key", Icon = "x", Danger = true, Disabled = binding.Key == nil, Callback = function() binding:SetKey(nil) end })
         end
         Menu.Open({ Anchor = pill, Items = items, Width = 150, Title = "Keybind" })
+    end
+    -- touch: a long press opens the menu that right-click opens with a mouse
+    local press, consumed = Util.LongPress(pill, menu)
+    table.insert(connections, press)
+    pill.MouseButton1Click:Connect(function()
+        if not consumed() then binding:Capture() end
     end)
+    pill.MouseButton2Click:Connect(menu)
 
     return pill, {
         Disconnect = function()

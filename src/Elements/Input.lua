@@ -3,6 +3,7 @@ local Base = import("Elements/Base")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Row = import("Components/Row")
+local Tooltip = import("Components/Tooltip")
 
 -- def: Title, Default, Placeholder, Numeric, Min, Max, Step, MaxLength, Finished (default true: commit on enter / focus lost),
 --      Validate(text) -> ok, message, Icon, Multiline, Height, ClearOnFocus, Callback(value)
@@ -53,7 +54,8 @@ function Input:Submit(text)
             return false
         end
         if (self.Def.Min and number < self.Def.Min) or (self.Def.Max and number > self.Def.Max) then
-            self.Error = string.format("Allowed: %s – %s", tostring(self.Def.Min or "-∞"), tostring(self.Def.Max or "∞"))
+            local min, max = self.Def.Min, self.Def.Max
+            self.Error = string.format("Allowed: %s – %s", min and Util.Compact(min) or "-∞", max and Util.Compact(max) or "∞")
             self.StateChanged:Fire("Error")
             return false
         end
@@ -74,6 +76,49 @@ end
 function Input:Text()
     if self.Numeric then return Util.Format(self.Value, self.Def.Step or (math.floor(self.Value) == self.Value and 1 or 0.01)) end
     return self.Value
+end
+
+-- a compact box inside another element's row (Toggle Field); a rejected entry flashes the message and
+-- the last valid value comes back
+function Input:RenderInline(parent, maid, props)
+    props = props or {}
+    local field, api = Row.Field(parent, { Size = UDim2.fromOffset(props.Width or 96, 22), LayoutOrder = props.LayoutOrder or 0, Radius = 5 })
+    local box = Util.New("TextBox", {
+        Size = UDim2.new(1, -12, 1, 0),
+        Position = UDim2.fromOffset(6, 0),
+        Text = self:Text(),
+        PlaceholderText = self.Def.Placeholder or "",
+        TextSize = 11,
+        ClearTextOnFocus = self.Def.ClearOnFocus == true,
+        ClipsDescendants = true,
+        Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
+        Parent = field,
+    })
+    local function paint()
+        if not box:IsFocused() then box.Text = self:Text() end
+        api.SetStroke(self.Error and "Danger" or nil)
+    end
+    paint()
+    maid:Give(self.Changed:Connect(paint))
+    maid:Give(self.StateChanged:Connect(function(what) if what == "Error" or what == "Locked" then paint() end end))
+    if self.Tooltip then maid:Give(Tooltip.Attach(field, function() return self.Error or self.Tooltip end)) end
+    box.Focused:Connect(function() api.SetFocused(true) end)
+    box.FocusLost:Connect(function()
+        api.SetFocused(false)
+        if self.Locked then box.Text = self:Text(); return end
+        if not self:Submit(box.Text) then
+            local message = self.Error
+            Tooltip.Show(message)
+            task.delay(2, function()
+                if self.Error ~= message then return end
+                self.Error = nil
+                self.StateChanged:Fire("Error")
+            end)
+        end
+        box.Text = self:Text()
+        paint()
+    end)
+    return field
 end
 
 function Input:Render(parent, maid)

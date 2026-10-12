@@ -1,8 +1,10 @@
 local import = ...
 local Base = import("Elements/Base")
 local Util = import("Core/Util")
+local Theme = import("Core/Theme")
 
--- def: Text, Value (right aligned text), Color (token), Size, RichText; Set(text), SetValue(text)
+-- def: Text, Value (right aligned text), Color (token), ValueColor (token | Color3), Size, RichText;
+--      Set(text), SetValue(text), SetValueColor(token | Color3 | nil)
 local Label = Base.Class("Label")
 
 function Label.new(container, def)
@@ -10,8 +12,15 @@ function Label.new(container, def)
     Base.Init(self, container, def)
     self.Title = def.Text or def.Title or ""
     self.Value = def.Value
+    self.ValueColor = def.ValueColor
     self.NoSave = true
     return self
+end
+
+function Label:SetValueColor(color)
+    if color == self.ValueColor then return end
+    self.ValueColor = color
+    self.StateChanged:Fire("ValueColor")
 end
 
 function Label:Set(text)
@@ -44,7 +53,11 @@ function Label:Render(parent, maid)
     })
     local value = Util.Label({
         TextSize = self.Def.Size or 12,
-        Color = "Text",
+        Theme = { TextColor3 = function(t)
+            local color = self.ValueColor
+            if typeof(color) == "Color3" then return color end
+            return t[color or "Text"] or t.Text
+        end },
         Weight = Enum.FontWeight.SemiBold,
         TextXAlignment = Enum.TextXAlignment.Right,
         AnchorPoint = Vector2.new(1, 0),
@@ -59,6 +72,7 @@ function Label:Render(parent, maid)
         value.Visible = self.Value ~= nil
         text.Size = UDim2.new(1, self.Value and -(value.AbsoluteSize.X + 10) or 0, 0, 0)
         frame.Visible = self.Visible
+        Theme.Refresh(value)
     end
     paint()
     maid:Give(self.Changed:Connect(paint))

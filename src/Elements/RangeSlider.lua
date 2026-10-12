@@ -134,7 +134,7 @@ function RangeSlider:Render(parent, maid)
             dragging = nil
             Util.Tween(scale, 0.12, { Scale = 0.85 })
             if not live then self:_notify() end
-        end)
+        end, track.Bar)
     end)
     if track.Minus then
         track.Minus.MouseButton1Click:Connect(function()

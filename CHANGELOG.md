@@ -4,6 +4,51 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-12
+
+### Added
+
+- Toggle `Field`: a value box in the toggle's own row, settable while the toggle is off, with its own `Flag`,
+  validation and number shorthand (`toggle.Field` is an Input).
+- Code: a preview of `Lines` lines (default 6) with a "+ n more lines" hint; a click opens the whole text in a
+  scrolling dialog with Copy. `Editable = true` turns it into an editor whose Save runs `OnSave(text)` first
+  (`false, message` keeps it open and shows the message). `Code:Open()`.
+- Dialog input options `Multiline`, `Height`, `Monospace` and `ReadOnly`; a multiline input scrolls. Dialogs are
+  never wider or taller than their window.
+- Panels: `AutoSize` (the height follows the content, no scroll area; default for Hud panels), `Scale` and
+  `Panel:SetScale(n)`, `Transparency` and `Panel:SetTransparency(n)`, `OnClose` and `Panel.Closed` for a close
+  by its x.
+- Label `ValueColor` and `Label:SetValueColor(color)` (theme token or Color3).
+- `Listed = false` on modules, toggles and keybinds keeps a bind out of the keybind list.
+- Range errors of number inputs use short numbers (`0 – 1000b`).
+- Touch screens:
+  - Tooltips show on a tap of an info icon or a locked control, at the finger, and hide after a moment or with
+    the next touch.
+  - A long press on a module header or a key pill opens the menu that right-click opens with a mouse.
+  - Stars and drag grips on cards stay faintly visible, there is no hover to reveal them.
+  - The window keeps its text readable on phones: it shrinks to the screen (down to `MinSize`) instead of
+    scaling down with the resolution.
+  - Dropdown search and dialogs no longer pop up the keyboard by themselves.
+
+### Changed
+
+- The default font is Ubuntu. Montserrat set letter pairs such as "as" too tight at small sizes; it stays in
+  the font list.
+
+### Fixed
+
+- Chevrons never turned: Roblox does not render `Rotation` inside clipping frames, so an open card, group or
+  dropdown still showed a down arrow. Open cards and dropdowns now show an up arrow, groups a down arrow.
+  The resize grips are drawn without rotation for the same reason.
+- A card whose content changed size while it unfolded (wrapped text, code) stayed cut off at the height it had
+  when the animation started.
+- The first control of a section lost the top edge of its outline.
+- Touch: a drag the system cancelled (a scroll area taking the touch over) never ended and dragged its element
+  along with the next touch. Drags now end on cancel, and scroll areas hold still while a slider, colour
+  picker or card is dragged by touch.
+- Touch: hover highlights stayed on after a tap; they end when the touch lifts.
+- Card drag autoscroll followed the mouse position instead of the dragging finger.
+
 ## [1.2.2] - 2026-10-12
 
 ### Fixed
@@ -120,6 +165,7 @@ First public release.
 - Settings tab built from the library's own elements.
 - Build tooling: `build/bundle.mjs`, `build/icons.mjs`, `build/harness.sh`, CI and release workflows.
 
+[1.3.0]: https://github.com/Mold53/OasisUI/compare/v1.2.2...v1.3.0
 [1.2.2]: https://github.com/Mold53/OasisUI/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Mold53/OasisUI/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Mold53/OasisUI/compare/v1.1.0...v1.2.0

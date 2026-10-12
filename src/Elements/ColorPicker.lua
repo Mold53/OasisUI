@@ -225,7 +225,7 @@ function ColorPicker:_open(anchor)
                 button.InputBegan:Connect(function(input)
                     if not Util.IsPress(input) or self.Locked then return end
                     onPoint(Util.Pointer(input))
-                    Drag.Follow(input, function(point) onPoint(point) end)
+                    Drag.Follow(input, function(point) onPoint(point) end, nil, button)
                 end)
             end
             local function relative(gui, point)

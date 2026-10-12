@@ -97,8 +97,7 @@ function Menu.Open(options)
                         Parent = button,
                     })
                 end
-                button.MouseEnter:Connect(function() hover = true; Theme.Refresh(button, 0.1) end)
-                button.MouseLeave:Connect(function() hover = false; Theme.Refresh(button, 0.1) end)
+                Util.Hover(button, function(on) hover = on; Theme.Refresh(button, 0.1) end)
                 button.MouseButton1Click:Connect(function()
                     if item.Disabled then return end
                     popup:Close()

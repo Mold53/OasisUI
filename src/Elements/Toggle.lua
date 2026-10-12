@@ -3,8 +3,10 @@ local Base = import("Elements/Base")
 local Row = import("Components/Row")
 local Widgets = import("Components/Widgets")
 local Binding = import("Core/Binding")
+local Input = import("Elements/Input")
 
--- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }), Callback(value)
+-- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }),
+--      Field (a value box in the same row, set while off too: Input options plus Width), Listed, Callback(value)
 local Toggle = Base.Class("Toggle")
 
 function Toggle.new(container, def)
@@ -31,7 +33,23 @@ function Toggle.new(container, def)
         self.Binding.Changed:Connect(function() self.Window:_touch(true) end)
         self.Window:_trackBind(self)
     end
+    if def.Field then
+        -- its own element model: own Flag, callback, validation; toggle.Field:Get() reads it
+        local spec = table.clone(def.Field)
+        spec.Title = spec.Title or self.Title
+        self.Field = Input.new(container, spec)
+    end
     return self
+end
+
+function Toggle:Reset()
+    Base.Reset(self)
+    if self.Field then self.Field:Reset() end
+end
+
+function Toggle:Destroy()
+    if self.Field then self.Field:Destroy() end
+    Base.Destroy(self)
 end
 
 function Toggle:Set(value, silent)
@@ -60,6 +78,9 @@ end
 
 function Toggle:Render(parent, maid)
     local row = Row.new(self, parent, maid, { Click = true })
+    if self.Field then
+        self.Field:RenderInline(row.Right, maid, { Width = self.Def.Field.Width, LayoutOrder = 0 })
+    end
     if self.Binding then
         local _, connection = Widgets.KeyPill(row.Right, self.Binding, { LayoutOrder = 1 })
         maid:Give(connection)

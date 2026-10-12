@@ -13,7 +13,9 @@ local STYLES = {
     Danger    = { Bg = "Danger", Text = "OnAccent" },
 }
 
--- options: Title, Content, Icon, Width, Input = { Placeholder, Default }, Buttons = { { Title, Style, Callback(text) } }
+-- options: Title, Content, Icon, Width, OnClose,
+--          Input = { Placeholder, Default, Multiline, Height, Monospace, ReadOnly },
+--          Buttons = { { Title, Style, Callback(text, dialog) } }
 function Dialog.Open(root, options)
     local maid = Maid.new()
     local handle = {}
@@ -29,10 +31,12 @@ function Dialog.Open(root, options)
     }))
     Util.Corner("Radius", shade)
 
+    -- never wider or taller than the window it covers
+    local inner = root.AbsoluteSize / math.max(Util.ScaleOf(root), 0.01)
     local card = Util.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.fromOffset(options.Width or 340, 0),
+        Size = UDim2.fromOffset(math.min(options.Width or 340, inner.X - 24), 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         ZIndex = 81,
         Theme = { BackgroundColor3 = "Elevated" },
@@ -76,9 +80,12 @@ function Dialog.Open(root, options)
     end
 
     local box
-    if options.Input then
+    local input = options.Input
+    if input then
+        local multiline = input.Multiline == true
+        local height = multiline and math.min(input.Height or 160, inner.Y - 170) or 30
         local field = Util.New("Frame", {
-            Size = UDim2.new(1, 0, 0, 30),
+            Size = UDim2.new(1, 0, 0, height),
             LayoutOrder = 3,
             ZIndex = 82,
             Theme = { BackgroundColor3 = "Surface" },
@@ -86,15 +93,36 @@ function Dialog.Open(root, options)
         })
         Util.Corner("ElementRadius", field)
         local stroke = Util.Stroke(field)
+        local font = input.Monospace and function() return Font.new("rbxasset://fonts/families/RobotoMono.json") end
+            or Theme.Font(Enum.FontWeight.Medium)
+        local holder = field
+        if multiline then
+            -- long text scrolls inside the field
+            holder = Util.New("ScrollingFrame", {
+                Size = UDim2.new(1, -8, 1, -12),
+                Position = UDim2.fromOffset(4, 6),
+                ScrollBarThickness = 3,
+                ZIndex = 83,
+                Theme = { ScrollBarImageColor3 = "TextMuted" },
+                Parent = field,
+            })
+            Util.Padding(holder, 0, 6, 2, 6)
+            Util.AutoCanvas(holder, Util.List(holder, 0))
+        end
         box = Util.New("TextBox", {
-            Size = UDim2.new(1, -20, 1, 0),
-            Position = UDim2.fromOffset(10, 0),
-            Text = options.Input.Default or "",
-            PlaceholderText = options.Input.Placeholder or "",
+            Size = multiline and UDim2.new(1, 0, 0, 0) or UDim2.new(1, -20, 1, 0),
+            Position = UDim2.fromOffset(multiline and 0 or 10, 0),
+            AutomaticSize = multiline and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
+            Text = input.Default or "",
+            PlaceholderText = input.Placeholder or "",
             TextSize = 12,
-            ZIndex = 83,
-            Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
-            Parent = field,
+            MultiLine = multiline,
+            TextWrapped = multiline,
+            TextEditable = input.ReadOnly ~= true,
+            TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
+            ZIndex = 84,
+            Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
+            Parent = holder,
         })
         box.Focused:Connect(function() Theme.Bind(stroke, { Color = "Accent" }) end)
         box.FocusLost:Connect(function() Theme.Bind(stroke, { Color = "Stroke" }) end)
@@ -177,7 +205,8 @@ function Dialog.Open(root, options)
 
     Util.Tween(shade, 0.18, { BackgroundTransparency = 0.45 })
     Util.Tween(scale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
-    if box then task.defer(function() box:CaptureFocus() end) end
+    -- touch: no keyboard popping up by itself, a tap on the field focuses it
+    if box and not input.ReadOnly and not Util.Touch() then task.defer(function() box:CaptureFocus() end) end
     return handle
 end
 

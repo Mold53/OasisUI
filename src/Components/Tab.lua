@@ -176,8 +176,7 @@ function Tab:_chip(sub)
         for _, inst in { button, stroke, label, icon } do Theme.Refresh(inst, 0.15) end
     end
     sub.Chip = { Button = button, Label = label, State = state, Paint = paint }
-    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
-    button.MouseLeave:Connect(function() state.Hover = false; paint() end)
+    Util.Hover(button, function(on) state.Hover = on; paint() end)
     button.MouseButton1Click:Connect(function() self.Window:SelectTab(sub) end)
     table.insert(self.SubTabs, sub)
     if not self.ActiveSub then self:_showSub(sub, true) end

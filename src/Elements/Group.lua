@@ -61,12 +61,12 @@ function Group:Render(parent, maid)
         Parent = frame,
     })
     Util.Corner(5, head)
-    local chevron = Util.Icon("chevron-right", {
+    -- an image swap: Rotation does not render inside the clipping columns
+    local chevron = Util.Icon(self.Opened and "chevron-down" or "chevron-right", {
         Size = UDim2.fromOffset(13, 13),
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0, 9, 0.5, 0),
         Color = "TextMuted",
-        Rotation = self.Opened and 90 or 0,
         Parent = head,
     })
     local x = 20
@@ -123,13 +123,12 @@ function Group:Render(parent, maid)
         body.Visible = self.Opened
         count.Text = tostring(#self.Children)
         count.Visible = not self.Opened
-        Util.Tween(chevron, animate and 0.18 or 0, { Rotation = self.Opened and 90 or 0 })
+        chevron.Image = Util.IconId(self.Opened and "chevron-down" or "chevron-right")
         frame.Visible = self.Visible
     end
     paint(false)
     maid:Give(self.StateChanged:Connect(function() paint(true) end))
-    head.MouseEnter:Connect(function() hover = true; Theme.Refresh(head, 0.1) end)
-    head.MouseLeave:Connect(function() hover = false; Theme.Refresh(head, 0.1) end)
+    Util.Hover(head, function(on) hover = on; Theme.Refresh(head, 0.1) end)
     head.MouseButton1Click:Connect(function() self:SetOpened(not self.Opened) end)
     return frame
 end

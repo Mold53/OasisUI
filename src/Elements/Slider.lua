@@ -62,8 +62,7 @@ local function stepper(parent, icon, order)
         Theme = { ImageColor3 = "TextMuted" },
         Parent = parent,
     })
-    button.MouseEnter:Connect(function() Theme.Bind(button, { ImageColor3 = "Text" }) end)
-    button.MouseLeave:Connect(function() Theme.Bind(button, { ImageColor3 = "TextMuted" }) end)
+    Util.Hover(button, function(on) Theme.Bind(button, { ImageColor3 = on and "Text" or "TextMuted" }) end)
     return button
 end
 
@@ -246,10 +245,9 @@ function Slider:Render(parent, maid)
             dragging = false
             Util.Tween(knobScale, 0.12, { Scale = 0.85 })
             if not live then self:_notify() end
-        end)
+        end, track.Bar)
     end)
-    track.Bar.MouseEnter:Connect(function() if not dragging then Util.Tween(knobScale, 0.1, { Scale = 1 }) end end)
-    track.Bar.MouseLeave:Connect(function() if not dragging then Util.Tween(knobScale, 0.1, { Scale = 0.85 }) end end)
+    Util.Hover(track.Bar, function(on) if not dragging then Util.Tween(knobScale, 0.1, { Scale = on and 1 or 0.85 }) end end)
     if track.Minus then
         track.Minus.MouseButton1Click:Connect(function() if not self.Locked then self:Set(self.Value - self.Step) end end)
         track.Plus.MouseButton1Click:Connect(function() if not self.Locked then self:Set(self.Value + self.Step) end end)

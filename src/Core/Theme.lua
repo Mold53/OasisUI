@@ -23,7 +23,7 @@ Theme.StyleDefaults = {
     StrokeTransparency   = 0.55,
     Radius               = 12,
     ElementRadius        = 8,
-    Font                 = "Montserrat",
+    Font                 = "Ubuntu",             -- Montserrat sets letter pairs like "as" too tight at small sizes
     AnimSpeed            = 1,
     Gradient             = true,
     GradientRotation     = 45,
@@ -32,9 +32,9 @@ Theme.StyleDefaults = {
 
 -- { family, display name }; only families that render differently (GothamSSm draws Montserrat, Arial draws Arimo)
 Theme.Fonts = {
+    { "Ubuntu", "Ubuntu" },
     { "Montserrat", "Montserrat" },
     { "BuilderSans", "Builder Sans" },
-    { "Ubuntu", "Ubuntu" },
     { "Nunito", "Nunito" },
     { "Roboto", "Roboto" },
     { "SourceSansPro", "Source Sans" },

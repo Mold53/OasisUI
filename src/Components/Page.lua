@@ -197,6 +197,7 @@ function Page:BeginDrag(view, input)
     local card = view.Card
     local window = self.Window
     local start = Util.Pointer(input)
+    local last = start
     local started = false
     local placeholder, ghostOffset, autoscroll
     local target = view.Column
@@ -247,7 +248,8 @@ function Page:BeginDrag(view, input)
         card.Parent = window.DragLayer
         card.Size = UDim2.fromOffset(width, 0)
         autoscroll = Services.RunService.Heartbeat:Connect(function()
-            local point = Util.Pointer()
+            -- the drag's own point: the mouse location is not the dragging finger on touch
+            local point = last
             local column = self.Columns[target]
             if not column then return end
             local top, bottom = column.AbsolutePosition.Y, column.AbsolutePosition.Y + column.AbsoluteSize.Y
@@ -260,6 +262,7 @@ function Page:BeginDrag(view, input)
     end
 
     Drag.Follow(input, function(point)
+        last = point
         if not started then
             if (point - start).Magnitude < 5 then return end
             begin()
@@ -279,7 +282,7 @@ function Page:BeginDrag(view, input)
         card.LayoutOrder = placeholder.LayoutOrder
         placeholder:Destroy()
         self:SaveLayout()
-    end)
+    end, card)
 end
 
 return Page
