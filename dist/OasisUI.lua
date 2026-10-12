@@ -1,4 +1,4 @@
--- OasisUI v1.2.1 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.2.2 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -3277,6 +3277,10 @@ function Tab:_enableSubTabs()
         self.Page.Frame.Parent = self.SubArea
         self.Shared = shared
         self:_chip(shared)
+    else
+        -- the tab's own page goes unused; a tab shown before its first sub-tab (first or restored tab) left it
+        -- visible on top of every page, where its empty columns swallowed the mouse wheel
+        self.Page.Frame.Visible = false
     end
 end
 
@@ -9209,5 +9213,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.2.1"
+Library.Version = "1.2.2"
 return Library
