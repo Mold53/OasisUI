@@ -1,0 +1,33 @@
+# Changelog
+
+All notable changes to this project are documented here.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2026-10-12
+
+First public release.
+
+### Added
+
+- Window with a topbar (animated title gradient, tags, global search, minimize, hide), a sidebar (favorites
+  with a counter, tab captions, pinned Settings tab, user card, compact mode), resizing, dragging, fit-to-screen
+  scaling and a menu button on touch devices.
+- Module cards in the Sapphire layout: switch, key pill, star, drag grip, settings that fold out, a context
+  menu, middle-click binding and a lock. Sections are cards without a switch.
+- Two scrolling columns per tab with drag and drop between them; the layout is saved per tab.
+- Favorites page with live mirrors of the pinned modules.
+- Search across every tab with highlighted matches.
+- Elements: Toggle, Checkbox, Button, ButtonRow, Slider, RangeSlider, Dropdown (single, multi, search,
+  icons, descriptions), Input (text, numbers, validation, multiline), Keybind (Toggle, Hold, Always),
+  ColorPicker (HSV, alpha, hex, RGB, rainbow), Segmented, Group, Label, Paragraph, Divider, Spacer,
+  ProgressBar, Image, Code.
+- Locked and hidden states for every element, `DependsOn` for conditional options.
+- Theme engine with nine presets and live editing of colours, transparency, corner radius, font, scale,
+  animation speed, background gradient and acrylic blur; themes can be saved, exported and imported.
+- Config manager: save, load, rename, delete, autoload, auto save, clipboard export and import.
+- Keybind list and watermark overlays, notifications, dialogs with text input, tooltips.
+- Settings tab built from the library's own elements.
+- Build tooling: `build/bundle.mjs`, `build/icons.mjs`, `build/harness.sh`, CI and release workflows.
+
+[1.0.0]: https://github.com/Mold53/OasisUI/releases/tag/v1.0.0

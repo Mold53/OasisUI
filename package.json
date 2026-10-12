@@ -1,0 +1,20 @@
+{
+    "name": "oasis-ui",
+    "version": "1.0.0",
+    "description": "Roblox UI library with Sapphire-style module cards, rearrangeable columns, favorites, search, a live theme editor and a config manager",
+    "license": "MIT",
+    "author": "Mold53",
+    "homepage": "https://github.com/Mold53/OasisUI",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Mold53/OasisUI.git"
+    },
+    "bugs": "https://github.com/Mold53/OasisUI/issues",
+    "keywords": ["roblox", "luau", "ui-library", "roblox-ui", "script-hub"],
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "node build/bundle.mjs",
+        "icons": "node build/icons.mjs"
+    }
+}
