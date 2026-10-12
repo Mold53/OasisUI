@@ -4,10 +4,9 @@
 [![CI](https://github.com/Mold53/OasisUI/actions/workflows/ci.yml/badge.svg)](https://github.com/Mold53/OasisUI/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/github/license/Mold53/OasisUI?color=4e84ff)](LICENSE)
 
-OasisUI is a Roblox UI library for executor scripts. The look starts from the Sapphire layout: module cards
-with a switch and a key pill, settings that fold out below, and two scrolling columns. On top of that it adds
-what large hubs need: drag-to-rearrange cards, favorites, global search, a live theme editor, a config manager
-and overlays.
+OasisUI is a Roblox UI library for executor scripts, built for large hubs: module cards with a switch and a
+key pill whose settings fold out below, two scrolling columns per tab with drag-to-rearrange cards, sub-tabs,
+favorites, global search, floating panels, a live theme editor, a config manager and overlays.
 
 ## Showcase
 
@@ -24,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.1.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.0/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.1.0/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.2.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.1.0"`).
+`OasisUI.Version` holds the loaded version (`"1.2.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.1.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.0/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -65,7 +64,7 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
   originals, and that page can be rearranged too.
 - **Search** across every tab and sub-tab (Ctrl+F). Matching cards are shown with their tab name, cards
   that only match through a child element open automatically, and matching rows are highlighted.
-- **Keybinds** in the Sapphire style. Click the pill and press a key, right-click it to choose Toggle, Hold
+- **Keybinds** as pills on cards and rows. Click a pill and press a key, right-click it to choose Toggle, Hold
   or Always. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while
   binding (keep or clear), whether mouse buttons are allowed, blacklisted keys and unclearable keys are all
   configurable, globally and per bind.
@@ -81,8 +80,8 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
 - **Panels**: small floating windows that hold any element. They can be dragged, collapsed, resized and
   closed, and remember their position. HUD panels stay visible while the menu is hidden.
 - **Theme editor** in the Settings tab: presets, nine colours, window, card and field transparency,
-  corner radius, font, scale, animation speed, background gradient, animated title, acrylic blur and
-  compact sidebar. Themes can be saved, loaded, exported and imported.
+  corner radius, font, screen fit and scale, animation speed, background gradient, animated title,
+  background blur and compact sidebar. Themes can be saved, loaded, exported and imported.
 - **Config manager**: save, load, rename, delete, autoload, auto save, and export/import through the
   clipboard. Keybinds are stored in the config too.
 - **Keybind list overlay** with its own settings: all or active binds, sort order, grouping by mode, column
@@ -132,7 +131,9 @@ local Window = OasisUI:CreateWindow({
 | `Window:Dialog({ Title, Content, Icon, Input = { Default, Placeholder }, Buttons = { { Title, Style, Callback(text, dialog) } } })` | return `false` from a callback to keep it open; `dialog:SetError(text)` |
 | `Window:Menu(items, { Title, Anchor, Width })` | context menu; items `{ Title, Icon, Callback, Checked, Danger, Disabled, Hint }` or `"-"` |
 | `Window:Notify(options)` | same as `OasisUI:Notify` |
-| `Window:SetVisible(bool)`, `:Toggle()`, `:SetMinimized(bool)`, `:SetScale(n)`, `:SetCompact(bool)` | |
+| `Window:SetVisible(bool)`, `:Toggle()`, `:SetMinimized(bool)`, `:SetCompact(bool)` | |
+| `Window:SetFitScreen(bool)`, `:SetScale(n)` | the fit scales with the resolution (1080p = 1) and keeps the window on screen; `SetScale` is a multiplier on top (1 = 100 %) |
+| `Window:SetBlur("Off" \| "Screen" \| "Window")` | background blur, see Notes |
 | `Window:SetSize(UDim2 \| Vector2)`, `:Center()` | |
 | `Window:SetTitle(text)`, `:SetSubtitle(text)`, `:SetUser(def \| false)` | |
 | `Window:SetWatermark(text \| fn)` | extra watermark text after the title; a function is called twice a second |
@@ -255,6 +256,11 @@ Style tokens: `WindowTransparency`, `SurfaceTransparency`, `ElevatedTransparency
 `Radius`, `ElementRadius`, `Font`, `AnimSpeed` (0 turns animations off), `Gradient`, `GradientRotation`,
 `AnimatedTitle`.
 
+`Font` takes a Roblox font family name. The Settings list offers the families that render differently:
+Montserrat (default), BuilderSans, Ubuntu, Nunito, Roboto, SourceSansPro, Arimo, JosefinSans, TitilliumWeb,
+Oswald, Jura, Zekton, Michroma, Merriweather, FredokaOne, RobotoMono. `GothamSSm` draws Montserrat and
+`Arial` draws Arimo, so they are not listed.
+
 Everything the user changes in Settings (theme, layout, favorites, overlays, behaviour) is stored in
 `<Folder>/ui.json`, separate from configs. `OasisUI.Theme.Export()` and `Theme.Import(data)` work with
 plain tables (colours as hex).
@@ -295,7 +301,8 @@ src/
   Themes/Presets.lua    colour palettes
   Components/           Window, Tab, Page (columns + drag), Module (card), Container (element mixin), Row,
                         Widgets (switch, checkbox, key pill), Popup, Menu, Tooltip, Dialog, Notification,
-                        Overlays (keybind list, watermark, mobile button), Panel, Acrylic, Layer (screen guis)
+                        Overlays (keybind list, watermark, mobile button), Panel, Acrylic (background blur),
+                        Layer (screen guis)
   Elements/             one file per element, Base.lua is the shared model
   Addons/Settings.lua   the built-in Settings tab
 build/
@@ -336,7 +343,9 @@ a GitHub release with `OasisUI.lua` attached and the changelog section as notes.
 
 ## Notes
 
-- Acrylic blur is off by default. It adds a `DepthOfFieldEffect` to Lighting and a glass part to the camera.
+- Background blur is off by default. `Screen` adds a `BlurEffect` to Lighting while the menu is open and works
+  on every graphics level. `Window` blurs only what is behind the window with a glass part in front of the
+  camera and a `DepthOfFieldEffect`; Roblox draws glass from graphics quality 8 up.
 - Guis go to `gethui()` when the executor has it, otherwise to CoreGui, otherwise to PlayerGui.
 - Without file functions (`writefile`, `readfile`, …) everything works, but nothing is saved.
 

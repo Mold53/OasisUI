@@ -7,6 +7,8 @@ local Layer = import("Components/Layer")
 local Tooltip = {}
 local frame, label, follow
 local token = 0
+-- while a popup is open only its own controls show tooltips (set by Popup)
+Tooltip.Owner = nil
 
 local function ensure()
     if frame and frame.Parent then return end
@@ -61,6 +63,8 @@ function Tooltip.Attach(gui, text)
         local mine = token
         task.delay(0.35, function()
             if mine ~= token then return end
+            local owner = Tooltip.Owner
+            if owner and owner.Parent and not gui:IsDescendantOf(owner) then return end
             -- a function may return nil (no tooltip right now)
             local value = if type(text) == "function" then text() else text
             if type(value) == "string" and value ~= "" then show(value) end

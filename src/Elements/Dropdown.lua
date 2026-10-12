@@ -251,7 +251,7 @@ function Dropdown:_open(field, chevron)
                 Theme = { ScrollBarImageColor3 = "TextMuted" },
                 Parent = frame,
             })
-            Util.List(list, 1)
+            Util.AutoCanvas(list, Util.List(list, 1))
             local empty = Util.Label({
                 Text = "No results",
                 TextSize = 11,

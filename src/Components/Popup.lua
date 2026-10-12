@@ -4,6 +4,7 @@ local Util = import("Core/Util")
 local Maid = import("Core/Maid")
 local Signal = import("Core/Signal")
 local Layer = import("Components/Layer")
+local Tooltip = import("Components/Tooltip")
 
 -- one floating panel at a time, anchored to a gui object or a screen point
 local UIS = Services.UserInputService
@@ -74,12 +75,17 @@ function Popup.Open(options)
         if closed then return end
         closed = true
         if Popup.Current == popup then Popup.Current = nil end
+        if Tooltip.Owner == frame then Tooltip.Owner = nil end
+        Tooltip.Hide()
         maid:Clean()
         Util.Safe(options.OnClose)
         popup.Closed:Fire()
         popup.Closed:Destroy()
     end
 
+    -- tooltips of things under the popup would stick to the mouse
+    Tooltip.Hide()
+    Tooltip.Owner = frame
     if options.Build then options.Build(frame, popup) end
     place()
     Util.Tween(scale, 0.14, { Scale = 1 })

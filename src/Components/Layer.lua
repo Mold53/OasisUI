@@ -31,6 +31,14 @@ end
 
 function Layer.Init(maid, name)
     Layer.Parent = parent()
+    -- guis left by a run the unload registry could not reach (another environment, an error mid-load)
+    for _, suffix in { "", "_Hud", "_Overlay" } do
+        local old = Layer.Parent:FindFirstChild(name .. suffix)
+        while old do
+            old:Destroy()
+            old = Layer.Parent:FindFirstChild(name .. suffix)
+        end
+    end
     Layer.Main = maid:Give(screen(name, 1000))
     Layer.Hud = maid:Give(screen(name .. "_Hud", 999))
     Layer.Overlay = maid:Give(screen(name .. "_Overlay", 1001))

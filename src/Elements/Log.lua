@@ -68,7 +68,7 @@ function Log:Render(parent, maid)
     Util.Corner(6, box)
     Util.Stroke(box)
     Util.Padding(box, 6, 8, 6, 8)
-    Util.List(box, 2)
+    Util.AutoCanvas(box, Util.List(box, 2))
     local font = self.Def.Monospace and Font.new("rbxasset://fonts/families/RobotoMono.json") or nil
     local count = 0
     local lines = {}

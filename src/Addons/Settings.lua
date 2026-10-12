@@ -62,29 +62,24 @@ return function(window)
         Callback = function(value) Theme.Set({ ElevatedTransparency = value / 100 }) end })
     sliders.Radius = look:Slider({ Title = "Corner radius", Min = 0, Max = 20, Suffix = "px", Default = Theme.Current.Radius, Buttons = true,
         Callback = function(value) Theme.Set({ Radius = value, ElementRadius = math.max(math.floor(value * 0.66 + 0.5), 0) }) end })
-    local font = look:Dropdown({ Title = "Font", Values = Theme.Fonts, Default = Theme.Current.Font, Callback = function(name) Theme.Set({ Font = name }) end })
+    local fonts = {}
+    for _, entry in Theme.Fonts do table.insert(fonts, { Title = entry[2], Value = entry[1] }) end
+    local font = look:Dropdown({ Title = "Font", Values = fonts, Default = Theme.Current.Font, Callback = function(name) Theme.Set({ Font = name }) end })
 
-    local scale = look:Slider({
+    look:Toggle({
+        Title = "Fit to screen",
+        Description = "Same size on every resolution, always fully on screen.",
+        Default = interface.FitScreen ~= false,
+        Callback = function(on) window:SetFitScreen(on) end,
+    })
+    look:Slider({
         Title = "Interface scale",
-        Min = 50, Max = 150, Suffix = "%", Step = 5,
-        Default = math.floor((interface.Scale or window:GetScale()) * 100 + 0.5),
+        Description = "On top of the screen fit.",
+        Min = 50, Max = 200, Suffix = "%", Step = 5,
+        Default = math.floor((tonumber(interface.Scale) or 1) * 100 + 0.5),
         Live = false,
         Callback = function(value) window:SetScale(value / 100) end,
     })
-    local autoScale = look:Toggle({
-        Title = "Fit to screen",
-        Description = "Scales the menu to the screen size.",
-        Default = interface.Scale == false,
-        Callback = function(on)
-            if on then
-                window:SetInterface("Scale", false)
-                window:_fitScale()
-            else
-                window:SetScale(scale:Get() / 100)
-            end
-        end,
-    })
-    scale:DependsOn(autoScale, function(on) return not on end)
     sliders.AnimSpeed = look:Slider({ Title = "Animation speed", Min = 0, Max = 300, Step = 10, Suffix = "%", Default = percent(Theme.Current.AnimSpeed),
         Tooltip = "0% turns animations off.", Callback = function(value) Theme.Set({ AnimSpeed = value / 100 }) end })
 
@@ -94,16 +89,29 @@ return function(window)
         Callback = function(value) Theme.Set({ GradientRotation = value }) end })
     rotation:DependsOn(gradient)
     local animated = effects:Toggle({ Title = "Animated title", Default = Theme.Current.AnimatedTitle, Callback = function(on) Theme.Set({ AnimatedTitle = on }) end })
-    effects:Toggle({
-        Title = "Acrylic blur",
-        Description = "Blurs the game behind the menu.",
-        Tooltip = "Adds a DepthOfField effect to Lighting while enabled.",
-        Default = interface.Acrylic,
-        Callback = function(on)
-            window.Acrylic:SetEnabled(on)
-            window:SetInterface("Acrylic", on)
+    local blur = effects:Dropdown({
+        Title = "Background blur",
+        Values = {
+            { Title = "Off", Value = "Off" },
+            { Title = "Screen", Value = "Screen", Description = "Blurs the game while the menu is open" },
+            { Title = "Window", Value = "Window", Description = "Glass behind the menu, graphics quality 8+" },
+        },
+        Default = interface.Blur,
+        Callback = function(mode)
+            window:SetBlur(mode)
+            if mode == "Window" and not window.Acrylic:Supported() then
+                notify("Window blur needs graphics quality 8+", "Raise it in the Roblox settings or use Screen blur.", "Warning")
+            end
         end,
     })
+    effects:Slider({
+        Title = "Blur strength",
+        Min = 2, Max = 24, Default = interface.BlurStrength,
+        Callback = function(value)
+            window:SetInterface("BlurStrength", value)
+            window.Acrylic:SetStrength(value)
+        end,
+    }):DependsOn(blur, function(mode) return mode == "Screen" end, "Hide")
 
     local layout = look:Group({ Title = "Layout", Icon = "layout-dashboard", Opened = false })
     layout:Toggle({ Title = "Expand modules when enabled", Default = interface.AutoExpand, Callback = function(on) window:SetInterface("AutoExpand", on) end })

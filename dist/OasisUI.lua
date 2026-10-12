@@ -1,4 +1,4 @@
--- OasisUI v1.1.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.2.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -78,29 +78,24 @@ return function(window)
         Callback = function(value) Theme.Set({ ElevatedTransparency = value / 100 }) end })
     sliders.Radius = look:Slider({ Title = "Corner radius", Min = 0, Max = 20, Suffix = "px", Default = Theme.Current.Radius, Buttons = true,
         Callback = function(value) Theme.Set({ Radius = value, ElementRadius = math.max(math.floor(value * 0.66 + 0.5), 0) }) end })
-    local font = look:Dropdown({ Title = "Font", Values = Theme.Fonts, Default = Theme.Current.Font, Callback = function(name) Theme.Set({ Font = name }) end })
+    local fonts = {}
+    for _, entry in Theme.Fonts do table.insert(fonts, { Title = entry[2], Value = entry[1] }) end
+    local font = look:Dropdown({ Title = "Font", Values = fonts, Default = Theme.Current.Font, Callback = function(name) Theme.Set({ Font = name }) end })
 
-    local scale = look:Slider({
+    look:Toggle({
+        Title = "Fit to screen",
+        Description = "Same size on every resolution, always fully on screen.",
+        Default = interface.FitScreen ~= false,
+        Callback = function(on) window:SetFitScreen(on) end,
+    })
+    look:Slider({
         Title = "Interface scale",
-        Min = 50, Max = 150, Suffix = "%", Step = 5,
-        Default = math.floor((interface.Scale or window:GetScale()) * 100 + 0.5),
+        Description = "On top of the screen fit.",
+        Min = 50, Max = 200, Suffix = "%", Step = 5,
+        Default = math.floor((tonumber(interface.Scale) or 1) * 100 + 0.5),
         Live = false,
         Callback = function(value) window:SetScale(value / 100) end,
     })
-    local autoScale = look:Toggle({
-        Title = "Fit to screen",
-        Description = "Scales the menu to the screen size.",
-        Default = interface.Scale == false,
-        Callback = function(on)
-            if on then
-                window:SetInterface("Scale", false)
-                window:_fitScale()
-            else
-                window:SetScale(scale:Get() / 100)
-            end
-        end,
-    })
-    scale:DependsOn(autoScale, function(on) return not on end)
     sliders.AnimSpeed = look:Slider({ Title = "Animation speed", Min = 0, Max = 300, Step = 10, Suffix = "%", Default = percent(Theme.Current.AnimSpeed),
         Tooltip = "0% turns animations off.", Callback = function(value) Theme.Set({ AnimSpeed = value / 100 }) end })
 
@@ -110,16 +105,29 @@ return function(window)
         Callback = function(value) Theme.Set({ GradientRotation = value }) end })
     rotation:DependsOn(gradient)
     local animated = effects:Toggle({ Title = "Animated title", Default = Theme.Current.AnimatedTitle, Callback = function(on) Theme.Set({ AnimatedTitle = on }) end })
-    effects:Toggle({
-        Title = "Acrylic blur",
-        Description = "Blurs the game behind the menu.",
-        Tooltip = "Adds a DepthOfField effect to Lighting while enabled.",
-        Default = interface.Acrylic,
-        Callback = function(on)
-            window.Acrylic:SetEnabled(on)
-            window:SetInterface("Acrylic", on)
+    local blur = effects:Dropdown({
+        Title = "Background blur",
+        Values = {
+            { Title = "Off", Value = "Off" },
+            { Title = "Screen", Value = "Screen", Description = "Blurs the game while the menu is open" },
+            { Title = "Window", Value = "Window", Description = "Glass behind the menu, graphics quality 8+" },
+        },
+        Default = interface.Blur,
+        Callback = function(mode)
+            window:SetBlur(mode)
+            if mode == "Window" and not window.Acrylic:Supported() then
+                notify("Window blur needs graphics quality 8+", "Raise it in the Roblox settings or use Screen blur.", "Warning")
+            end
         end,
     })
+    effects:Slider({
+        Title = "Blur strength",
+        Min = 2, Max = 24, Default = interface.BlurStrength,
+        Callback = function(value)
+            window:SetInterface("BlurStrength", value)
+            window.Acrylic:SetStrength(value)
+        end,
+    }):DependsOn(blur, function(mode) return mode == "Screen" end, "Hide")
 
     local layout = look:Group({ Title = "Layout", Icon = "layout-dashboard", Opened = false })
     layout:Toggle({ Title = "Expand modules when enabled", Default = interface.AutoExpand, Callback = function(on) window:SetInterface("AutoExpand", on) end })
@@ -404,16 +412,45 @@ end
 __modules["Components/Acrylic"] = function(...)
 local import = ...
 local Services = import("Core/Services")
+local Util = import("Core/Util")
+local Theme = import("Core/Theme")
 
--- background blur behind the window (depth of field + a glass plate in front of the camera)
--- off by default: it adds a DepthOfFieldEffect to Lighting and a part to the camera
+-- background blur, off by default
+--   "Screen": a BlurEffect in Lighting while the menu is open; works on every graphics level
+--   "Window": a glass plate in front of the camera plus a DepthOfFieldEffect, blurring only what is behind
+--             the window; Roblox draws glass from graphics quality 8 up
 local Acrylic = {}
 Acrylic.__index = Acrylic
+Acrylic.Modes = { "Off", "Screen", "Window" }
 
 function Acrylic.new(frame, maid)
-    local self = setmetatable({ Frame = frame, Enabled = false, Shown = true, _maid = nil, _parent = maid }, Acrylic)
-    maid:Give(function() self:SetEnabled(false) end)
+    local self = setmetatable({ Frame = frame, Mode = "Off", Shown = true, Strength = 12 }, Acrylic)
+    maid:Give(function() self:SetMode("Off") end)
     return self
+end
+
+local function qualityLevel()
+    local ok, level = pcall(function() return UserSettings().GameSettings.SavedQualityLevel.Value end)
+    return ok and level or 0
+end
+
+-- 0 = automatic, the engine decides; anything from 8 up renders glass
+function Acrylic:Supported()
+    local level = qualityLevel()
+    return level == 0 or level >= 8
+end
+
+function Acrylic:_screen()
+    local blur = Instance.new("BlurEffect")
+    blur.Name = "OasisBlur"
+    blur.Size = 0
+    blur.Parent = Services.Lighting
+    local function update()
+        Util.Tween(blur, 0.3, { Size = self.Shown and self.Strength or 0 })
+    end
+    self._update = update
+    self._stop = function() blur:Destroy() end
+    update()
 end
 
 local function toWorld(point, distance)
@@ -421,16 +458,16 @@ local function toWorld(point, distance)
     return ray.Origin + ray.Direction * distance
 end
 
-function Acrylic:_start()
+function Acrylic:_window()
     local camera = workspace.CurrentCamera
     local connections = {}
-    local blur = Instance.new("DepthOfFieldEffect")
-    blur.Name = "OasisAcrylic"
-    blur.FarIntensity = 0
-    blur.FocusDistance = 0.05
-    blur.InFocusRadius = 0.1
-    blur.NearIntensity = 1
-    blur.Parent = Services.Lighting
+    local depth = Instance.new("DepthOfFieldEffect")
+    depth.Name = "OasisAcrylic"
+    depth.FarIntensity = 0
+    depth.FocusDistance = 0.05
+    depth.InFocusRadius = 0.1
+    depth.NearIntensity = 1
+    depth.Parent = Services.Lighting
 
     local part = Instance.new("Part")
     part.Name = "OasisAcrylic"
@@ -447,45 +484,58 @@ function Acrylic:_start()
 
     local function update()
         local frame = self.Frame
-        local inset = 8
+        local inset = 6
+        -- AbsolutePosition sits below the topbar inset, viewport rays start above it
         local position = frame.AbsolutePosition + Vector2.new(inset, inset) + Services.GuiService:GetGuiInset()
         local size = frame.AbsoluteSize - Vector2.new(inset * 2, inset * 2)
-        local distance = 0.001
-        local topLeft = toWorld(position, distance)
-        local topRight = toWorld(position + Vector2.new(size.X, 0), distance)
-        local bottomRight = toWorld(position + size, distance)
+        local topLeft = toWorld(position, 0.001)
+        local topRight = toWorld(position + Vector2.new(size.X, 0), 0.001)
+        local bottomRight = toWorld(position + size, 0.001)
         local cf = camera.CFrame
         part.CFrame = CFrame.fromMatrix((topLeft + bottomRight) / 2, cf.XVector, cf.YVector, cf.ZVector)
         mesh.Scale = Vector3.new((topRight - topLeft).Magnitude, (topRight - bottomRight).Magnitude, 0)
-        part.Transparency = (self.Shown and self.Frame.Visible) and 0.98 or 1
+        local visible = self.Shown and frame.Visible and self:Supported()
+        part.Transparency = visible and 0.98 or 1
+        depth.Enabled = visible
     end
     table.insert(connections, camera:GetPropertyChangedSignal("CFrame"):Connect(update))
+    table.insert(connections, camera:GetPropertyChangedSignal("FieldOfView"):Connect(update))
     table.insert(connections, camera:GetPropertyChangedSignal("ViewportSize"):Connect(update))
     table.insert(connections, self.Frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(update))
     table.insert(connections, self.Frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(update))
+    table.insert(connections, UserSettings().GameSettings:GetPropertyChangedSignal("SavedQualityLevel"):Connect(update))
     update()
+    self._update = update
     self._stop = function()
         for _, connection in connections do connection:Disconnect() end
         part:Destroy()
-        blur:Destroy()
+        depth:Destroy()
     end
-    self._update = update
 end
 
-function Acrylic:SetEnabled(enabled)
-    enabled = enabled and true or false
-    if enabled == self.Enabled then return end
-    self.Enabled = enabled
-    if enabled then
-        local ok, err = pcall(self._start, self)
-        if not ok then
-            warn("[OasisUI] acrylic: " .. tostring(err))
-            self.Enabled = false
-        end
-    elseif self._stop then
+function Acrylic:SetMode(mode)
+    if not table.find(Acrylic.Modes, mode) then mode = "Off" end
+    if mode == self.Mode then return end
+    if self._stop then
         self._stop()
         self._stop, self._update = nil, nil
     end
+    self.Mode = mode
+    -- glass needs a see-through window background to show anything
+    Theme.Set({ _windowBlur = mode == "Window" })
+    local start = if mode == "Screen" then self._screen elseif mode == "Window" then self._window else nil
+    if start then
+        local ok, err = pcall(start, self)
+        if not ok then
+            warn("[OasisUI] blur: " .. tostring(err))
+            self.Mode = "Off"
+        end
+    end
+end
+
+function Acrylic:SetStrength(strength)
+    self.Strength = strength
+    if self.Mode == "Screen" and self._update then self._update() end
 end
 
 function Acrylic:SetVisible(visible)
@@ -835,6 +885,14 @@ end
 
 function Layer.Init(maid, name)
     Layer.Parent = parent()
+    -- guis left by a run the unload registry could not reach (another environment, an error mid-load)
+    for _, suffix in { "", "_Hud", "_Overlay" } do
+        local old = Layer.Parent:FindFirstChild(name .. suffix)
+        while old do
+            old:Destroy()
+            old = Layer.Parent:FindFirstChild(name .. suffix)
+        end
+    end
     Layer.Main = maid:Give(screen(name, 1000))
     Layer.Hud = maid:Give(screen(name .. "_Hud", 999))
     Layer.Overlay = maid:Give(screen(name .. "_Overlay", 1001))
@@ -991,7 +1049,7 @@ local Widgets = import("Components/Widgets")
 local Menu = import("Components/Menu")
 local Tooltip = import("Components/Tooltip")
 
--- sapphire style feature card: switch + key in the header, settings fold out below
+-- feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
 --      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
@@ -1789,15 +1847,36 @@ function Overlays.new(window)
     return self
 end
 
+-- keeps a hud frame fully on screen (resolution changes, old saves)
+local function clamp(frame)
+    local bounds, size = Layer.Bounds(), frame.AbsoluteSize
+    local position = frame.AbsolutePosition
+    local x = math.clamp(position.X, 0, math.max(0, bounds.X - size.X))
+    local y = math.clamp(position.Y, 0, math.max(0, bounds.Y - size.Y))
+    frame.Position = UDim2.fromOffset(x, y)
+end
+
+-- positions are stored as absolute pixels, so a scale part can never get lost
 local function savePosition(window, key, frame)
-    window.Interface[key] = { math.floor(frame.Position.X.Offset), math.floor(frame.Position.Y.Offset) }
+    clamp(frame)
+    window.Interface[key] = { math.floor(frame.AbsolutePosition.X), math.floor(frame.AbsolutePosition.Y) }
     window:SaveState()
 end
 
+-- fallback(bounds) -> Vector2 for the first placement
 local function restore(window, key, frame, fallback)
     local saved = window.Interface[key]
-    frame.Position = type(saved) == "table" and UDim2.fromOffset(saved[1], saved[2]) or fallback
+    local point = type(saved) == "table" and Vector2.new(tonumber(saved[1]) or 0, tonumber(saved[2]) or 0) or fallback(Layer.Bounds())
+    frame.Position = UDim2.fromOffset(point.X, point.Y)
+    task.defer(function() if frame.Parent then clamp(frame) end end)
+    window.Maid:Give(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        task.defer(function() if frame.Parent then clamp(frame) end end)
+    end))
 end
+
+local function keybindsHome(bounds) return Vector2.new(14, math.floor(bounds.Y * 0.4)) end
+local function watermarkHome() return Vector2.new(14, 14) end
+local function mobileHome(bounds) return Vector2.new(14, math.floor(bounds.Y * 0.5) - 23) end
 
 -- keybind list ----------------------------------------------------------------
 
@@ -1837,7 +1916,7 @@ function Overlays:_buildBinds()
     local rule = Util.New("Frame", { Size = UDim2.new(1, 0, 0, 1), LayoutOrder = 1, Theme = { BackgroundColor3 = "Divider" }, Parent = frame })
     Util.New("UIGradient", { Transparency = NumberSequence.new(0, 1), Parent = rule })
 
-    restore(window, "KeybindListPos", frame, UDim2.new(0, 14, 0.4, 0))
+    restore(window, "KeybindListPos", frame, keybindsHome)
     window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "KeybindListPos", frame) end end }))
     self.Binds, self.BindScale, self.BindHead, self.BindRule, self.BindCounter = frame, scale, head, rule, counter
     self.BindRows = {}
@@ -1868,7 +1947,8 @@ function Overlays:ResetPosition(which)
     local window = self.Window
     if which == "Keybinds" and self.Binds then
         window.Interface.KeybindListPos = nil
-        self.Binds.Position = UDim2.new(0, 14, 0.4, 0)
+        local home = keybindsHome(Layer.Bounds())
+        self.Binds.Position = UDim2.fromOffset(home.X, home.Y)
     elseif which == "Watermark" and self.Watermark then
         window.Interface.WatermarkPos = nil
         self.Watermark.Position = UDim2.fromOffset(14, 14)
@@ -2055,7 +2135,7 @@ function Overlays:SetWatermark(on)
         Util.New("UIGradient", { Rotation = 45, Theme = { Color = function(t) return ColorSequence.new(t.Accent, t.AccentAlt) end }, Parent = logo })
         local text = Util.Label({ TextSize = 11, Weight = Enum.FontWeight.Medium, RichText = true, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = 2, Parent = frame })
         local scale = Util.New("UIScale", { Scale = window.Interface.WatermarkStyle.Scale / 100, Parent = frame })
-        restore(window, "WatermarkPos", frame, UDim2.fromOffset(14, 14))
+        restore(window, "WatermarkPos", frame, watermarkHome)
         window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "WatermarkPos", frame) end end }))
 
         local frames, elapsed, fps = 0, 0, 0
@@ -2131,7 +2211,7 @@ function Overlays:SetMobileButton(on)
             Parent = button,
         })
         Util.New("UIGradient", { Rotation = 45, Theme = { Color = function(t) return ColorSequence.new(t.Accent, t.AccentAlt) end }, Parent = logo })
-        restore(window, "MobilePos", button, UDim2.new(0, 14, 0.5, -23))
+        restore(window, "MobilePos", button, mobileHome)
         window.Maid:Give(Drag.Attach(button, button, {
             OnEnd = function(moved)
                 if moved then
@@ -2194,8 +2274,9 @@ function Page.new(window, options)
             Parent = self.Frame,
         })
         column.ScrollBarImageTransparency = 0.4
-        Util.List(column, GAP)
+        local layout = Util.List(column, GAP)
         Util.Padding(column, 1, 6, 14, 1)
+        Util.AutoCanvas(column, layout)
         self.Columns[index] = column
     end
 
@@ -2563,7 +2644,7 @@ function Panel.new(window, def)
         Parent = frame,
     })
     Util.Padding(body, 10, 12, 12, 12)
-    Util.List(body, 9)
+    Util.AutoCanvas(body, Util.List(body, 9))
     self.Body = body
     self:_mountChildren(body, self.Maid)
 
@@ -2644,6 +2725,7 @@ local Util = import("Core/Util")
 local Maid = import("Core/Maid")
 local Signal = import("Core/Signal")
 local Layer = import("Components/Layer")
+local Tooltip = import("Components/Tooltip")
 
 -- one floating panel at a time, anchored to a gui object or a screen point
 local UIS = Services.UserInputService
@@ -2714,12 +2796,17 @@ function Popup.Open(options)
         if closed then return end
         closed = true
         if Popup.Current == popup then Popup.Current = nil end
+        if Tooltip.Owner == frame then Tooltip.Owner = nil end
+        Tooltip.Hide()
         maid:Clean()
         Util.Safe(options.OnClose)
         popup.Closed:Fire()
         popup.Closed:Destroy()
     end
 
+    -- tooltips of things under the popup would stick to the mouse
+    Tooltip.Hide()
+    Tooltip.Owner = frame
     if options.Build then options.Build(frame, popup) end
     place()
     Util.Tween(scale, 0.14, { Scale = 1 })
@@ -3086,10 +3173,9 @@ function Tab:_enableSubTabs()
         Name = "Bar",
         Size = UDim2.new(1, 0, 0, BAR),
         ScrollingDirection = Enum.ScrollingDirection.X,
-        AutomaticCanvasSize = Enum.AutomaticSize.X,
         Parent = holder,
     })
-    Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+    Util.AutoCanvas(bar, Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center), true)
     self.SubArea = Util.New("Frame", {
         Name = "Area",
         BackgroundTransparency = 1,
@@ -3220,6 +3306,8 @@ local Layer = import("Components/Layer")
 local Tooltip = {}
 local frame, label, follow
 local token = 0
+-- while a popup is open only its own controls show tooltips (set by Popup)
+Tooltip.Owner = nil
 
 local function ensure()
     if frame and frame.Parent then return end
@@ -3274,6 +3362,8 @@ function Tooltip.Attach(gui, text)
         local mine = token
         task.delay(0.35, function()
             if mine ~= token then return end
+            local owner = Tooltip.Owner
+            if owner and owner.Parent and not gui:IsDescendantOf(owner) then return end
             -- a function may return nil (no tooltip right now)
             local value = if type(text) == "function" then text() else text
             if type(value) == "string" and value ~= "" then show(value) end
@@ -3375,7 +3465,7 @@ function Widgets.Checkbox(parent, props)
     return box, paint
 end
 
--- sapphire style key pill for a Binding; click binds, right click opens modes
+-- key pill for a Binding; click binds, right click opens modes
 function Widgets.KeyPill(parent, binding, props)
     props = props or {}
     local hover = false
@@ -3502,13 +3592,15 @@ local COMPACT = 56
 local MIN_SIZE = Vector2.new(560, 380)
 
 local INTERFACE = {
-    Scale = false,           -- false = fit the screen
+    Scale = 1,               -- user multiplier on top of the screen fit
+    FitScreen = true,        -- scale with the resolution (1080p = 1)
     AutoExpand = true,
     Compact = false,
     ToggleKey = "RightShift",
     KeybindList = false,
     Watermark = false,
-    Acrylic = false,
+    Blur = "Off",            -- "Off" | "Screen" | "Window", see Components/Acrylic
+    BlurStrength = 12,
     ShowUser = true,         -- profile card in the sidebar
     HideUser = false,        -- streamer mode: hide name
     HideAvatar = false,
@@ -3576,7 +3668,8 @@ function Window.new(library, def)
     self.Overlays:SetWatermark(self.Interface.Watermark)
     if UIS.TouchEnabled then self.Overlays:SetMobileButton(true) end
     self.Acrylic = Acrylic.new(self.Root, self.Maid)
-    self.Acrylic:SetEnabled(self.Interface.Acrylic)
+    self.Acrylic.Strength = tonumber(self.Interface.BlurStrength) or 12
+    self.Acrylic:SetMode(self.Interface.Blur)
 
     if def.Settings ~= false then
         import("Addons/Settings")(self)
@@ -3604,6 +3697,7 @@ function Window:_loadState()
     for _, key in { "SubTabs", "Panels" } do
         if type(state.Interface[key]) ~= "table" then state.Interface[key] = {} end
     end
+    if type(state.Interface.Scale) ~= "number" then state.Interface.Scale = nil end
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
     for key, value in defaults do
@@ -3689,7 +3783,9 @@ function Window:_build()
         Active = true,
         Theme = {
             BackgroundColor3 = function(t) return t.Gradient and Color3.new(1, 1, 1) or t.Background end,
-            BackgroundTransparency = "WindowTransparency",
+            BackgroundTransparency = function(t)
+                return t._windowBlur and math.max(t.WindowTransparency, 0.35) or t.WindowTransparency
+            end,
         },
         Parent = Layer.Main,
     }))
@@ -3937,7 +4033,7 @@ function Window:_build()
         Parent = sidebar,
     })
     Util.Padding(list, 10, 10, 10, 10)
-    Util.List(list, 3)
+    Util.AutoCanvas(list, Util.List(list, 3))
     self.TabList = list
 
     local bottom = Util.New("Frame", {
@@ -4050,8 +4146,10 @@ function Window:_build()
     self:SetCompact(self.Interface.Compact, true)
     self:_fitScale()
     self.Maid:Give(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-        if not self.Interface.Scale then self:_fitScale() end
+        self:_fitScale()
+        task.defer(function() self:_clampRoot() end)
     end))
+    task.defer(function() self:_clampRoot() end)
 end
 
 function Window:_userCard(parent)
@@ -4233,28 +4331,55 @@ function Window:SetCompact(compact, instant)
     end
 end
 
+-- final scale = (screen fit or 1) x user multiplier; with the fit on the window always stays on screen
 function Window:_fitScale()
-    local scale = self.Interface.Scale
-    if not scale then
-        local viewport = Layer.Bounds()
-        local size = self.Root.Size
-        scale = math.min(1, (viewport.X - 24) / size.X.Offset, (viewport.Y - 24) / size.Y.Offset)
-        scale = math.clamp(scale, 0.45, 1)
+    local scale = math.clamp(tonumber(self.Interface.Scale) or 1, 0.25, 4)
+    if self.Interface.FitScreen ~= false then
+        local bounds = Layer.Bounds()
+        local size = self.Minimized and self._restoreSize or self.Root.Size
+        local viewport = workspace.CurrentCamera.ViewportSize
+        scale *= math.clamp(viewport.Y / 1080, 0.5, 2)
+        scale = math.min(scale, (bounds.X - 24) / size.X.Offset, (bounds.Y - 24) / size.Y.Offset)
     end
-    self:SetScale(scale, true)
+    self:_applyScale(math.clamp(scale, 0.35, 3))
 end
 
-function Window:SetScale(scale, auto)
+function Window:_applyScale(scale)
     self.Scale = scale
     self.UIScale.Scale = scale
     Layer.SetScale(scale)
     for _, panel in self.Panels do
         if not panel.Def.Hud then panel.UIScale.Scale = scale end
     end
-    if not auto then
-        self.Interface.Scale = scale
-        self:SaveState()
-    end
+end
+
+-- "Off" | "Screen" | "Window"
+function Window:SetBlur(mode)
+    self.Interface.Blur = mode
+    self.Acrylic:SetMode(mode)
+    self:SaveState()
+end
+
+-- multiplier on top of the screen fit (1 = 100 %)
+function Window:SetScale(multiplier)
+    self.Interface.Scale = multiplier
+    self:SaveState()
+    self:_fitScale()
+end
+
+function Window:SetFitScreen(on)
+    self.Interface.FitScreen = on and true or false
+    self:SaveState()
+    self:_fitScale()
+end
+
+-- keeps at least part of the window on screen after a resolution change
+function Window:_clampRoot()
+    local root, bounds = self.Root, Layer.Bounds()
+    local position, size = root.AbsolutePosition, root.AbsoluteSize
+    local dx = math.clamp(position.X, 60 - size.X, bounds.X - 60) - position.X
+    local dy = math.clamp(position.Y, 0, bounds.Y - 60) - position.Y
+    if dx ~= 0 or dy ~= 0 then root.Position += UDim2.fromOffset(dx, dy) end
 end
 
 function Window:SetMinimized(minimized)
@@ -5540,14 +5665,32 @@ Theme.StyleDefaults = {
     StrokeTransparency   = 0.55,
     Radius               = 12,
     ElementRadius        = 8,
-    Font                 = "GothamSSm",
+    Font                 = "Montserrat",
     AnimSpeed            = 1,
     Gradient             = true,
     GradientRotation     = 45,
     AnimatedTitle        = true,
 }
 
-Theme.Fonts = { "GothamSSm", "BuilderSans", "Montserrat", "Ubuntu", "Nunito", "Roboto", "SourceSansPro", "Arimo", "Jura", "Oswald", "TitilliumWeb" }
+-- { family, display name }; only families that render differently (GothamSSm draws Montserrat, Arial draws Arimo)
+Theme.Fonts = {
+    { "Montserrat", "Montserrat" },
+    { "BuilderSans", "Builder Sans" },
+    { "Ubuntu", "Ubuntu" },
+    { "Nunito", "Nunito" },
+    { "Roboto", "Roboto" },
+    { "SourceSansPro", "Source Sans" },
+    { "Arimo", "Arimo" },
+    { "JosefinSans", "Josefin Sans" },
+    { "TitilliumWeb", "Titillium" },
+    { "Oswald", "Oswald" },
+    { "Jura", "Jura" },
+    { "Zekton", "Zekton" },
+    { "Michroma", "Michroma" },
+    { "Merriweather", "Merriweather" },
+    { "FredokaOne", "Fredoka" },
+    { "RobotoMono", "Roboto Mono" },
+}
 
 -- strong keys: roblox recycles instance wrappers, so a weak table would lose live bindings;
 -- unparented (destroyed) instances are dropped by Apply and Sweep
@@ -5665,7 +5808,10 @@ end
 function Theme.Export()
     local out = { Palette = Theme.Palette, Tokens = {} }
     for key, value in Theme.Current do
-        out.Tokens[key] = typeof(value) == "Color3" and ("#" .. value:ToHex()) or value
+        -- "_" tokens are runtime state, not part of a theme
+        if key:sub(1, 1) ~= "_" then
+            out.Tokens[key] = typeof(value) == "Color3" and ("#" .. value:ToHex()) or value
+        end
     end
     return out
 end
@@ -5827,6 +5973,41 @@ function Util.Icon(icon, props)
     theme.ImageColor3 = theme.ImageColor3 or color
     props.Theme = theme
     return Util.New("ImageLabel", props)
+end
+
+-- product of every UIScale above gui (absolute sizes are scaled, offsets are not)
+function Util.ScaleOf(gui)
+    local scale = 1
+    local node = gui
+    while node and not node:IsA("LayerCollector") do
+        local uiScale = node:FindFirstChildOfClass("UIScale")
+        if uiScale then scale *= uiScale.Scale end
+        node = node.Parent
+    end
+    return scale
+end
+
+-- sizes a ScrollingFrame's canvas from its list layout; AutomaticCanvasSize misreads UIScale and
+-- frames that were filled while hidden
+function Util.AutoCanvas(frame, layout, horizontal)
+    frame.AutomaticCanvasSize = Enum.AutomaticSize.None
+    local padding = frame:FindFirstChildOfClass("UIPadding")
+    local function update()
+        if not frame.Parent then return end
+        local scale = Util.ScaleOf(frame)
+        local content = layout.AbsoluteContentSize / math.max(scale, 0.01)
+        if horizontal then
+            local extra = padding and (padding.PaddingLeft.Offset + padding.PaddingRight.Offset) or 0
+            frame.CanvasSize = UDim2.fromOffset(math.ceil(content.X + extra), 0)
+        else
+            local extra = padding and (padding.PaddingTop.Offset + padding.PaddingBottom.Offset) or 0
+            frame.CanvasSize = UDim2.fromOffset(0, math.ceil(content.Y + extra))
+        end
+    end
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+    frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
+    update()
+    return update
 end
 
 -- hover state + press scale for any button; state.Hover / state.Down feed its theme functions
@@ -7104,7 +7285,7 @@ function Dropdown:_open(field, chevron)
                 Theme = { ScrollBarImageColor3 = "TextMuted" },
                 Parent = frame,
             })
-            Util.List(list, 1)
+            Util.AutoCanvas(list, Util.List(list, 1))
             local empty = Util.Label({
                 Text = "No results",
                 TextSize = 11,
@@ -7895,7 +8076,7 @@ function Log:Render(parent, maid)
     Util.Corner(6, box)
     Util.Stroke(box)
     Util.Padding(box, 6, 8, 6, 8)
-    Util.List(box, 2)
+    Util.AutoCanvas(box, Util.List(box, 2))
     local font = self.Def.Monospace and Font.new("rbxasset://fonts/families/RobotoMono.json") or nil
     local count = 0
     local lines = {}
@@ -8753,7 +8934,7 @@ return {
         Stroke = rgb(88, 92, 110), Divider = rgb(52, 54, 66),
     }),
 
-    -- greyscale, closest to the original sapphire look
+    -- greyscale
     Obsidian = palette({
         Accent = rgb(222, 222, 228), AccentAlt = rgb(120, 120, 130),
         Background = rgb(5, 5, 6), BackgroundAlt = rgb(48, 48, 52),
@@ -8945,5 +9126,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.1.0"
+Library.Version = "1.2.0"
 return Library

@@ -4,6 +4,35 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-12
+
+### Added
+
+- `Window:SetBlur("Off" | "Screen" | "Window")` and `Window:SetFitScreen(bool)`.
+
+### Changed
+
+- "Acrylic blur" is now "Background blur" with three modes: Off, Screen (a BlurEffect while the menu is open,
+  works on every graphics level) and Window (glass behind the window, needs graphics quality 8+; Settings
+  warns when it cannot render). A strength slider controls the Screen blur, and Window mode keeps the window
+  background see-through enough to show the glass.
+- "Fit to screen" scales with the resolution (1080p = 100 %) and keeps the window on screen.
+  "Interface scale" is a multiplier on top of it and is never locked. `Window:SetScale(n)` sets that multiplier.
+- The font list holds 16 families that render differently, with readable names; the default font is
+  Montserrat.
+- Documentation and comments no longer refer to other UI libraries.
+
+### Fixed
+
+- The keybind list, the watermark and the mobile button reopened far above their saved spot after
+  re-running a script, so the keybind list could vanish off screen: only the pixel part of their position
+  was saved. Positions are now stored as absolute pixels and kept on screen, also after a resolution
+  change. The window is pulled back on screen the same way.
+- Choosing GothamSSm or Montserrat looked identical (Roblox draws Gotham as Montserrat).
+- Tooltips of controls under an open dropdown or menu no longer appear or stick to the mouse.
+- Scroll areas are sized from the real content height instead of AutomaticCanvasSize, and guis left behind
+  by an earlier run with the same name are removed on start.
+
 ## [1.1.0] - 2026-10-12
 
 ### Added
@@ -51,7 +80,7 @@ First public release.
 - Window with a topbar (animated title gradient, tags, global search, minimize, hide), a sidebar (favorites
   with a counter, tab captions, pinned Settings tab, user card, compact mode), resizing, dragging, fit-to-screen
   scaling and a menu button on touch devices.
-- Module cards in the Sapphire layout: switch, key pill, star, drag grip, settings that fold out, a context
+- Module cards: switch, key pill, star, drag grip, settings that fold out, a context
   menu, middle-click binding and a lock. Sections are cards without a switch.
 - Two scrolling columns per tab with drag and drop between them; the layout is saved per tab.
 - Favorites page with live mirrors of the pinned modules.
@@ -68,5 +97,6 @@ First public release.
 - Settings tab built from the library's own elements.
 - Build tooling: `build/bundle.mjs`, `build/icons.mjs`, `build/harness.sh`, CI and release workflows.
 
+[1.2.0]: https://github.com/Mold53/OasisUI/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Mold53/OasisUI/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Mold53/OasisUI/releases/tag/v1.0.0

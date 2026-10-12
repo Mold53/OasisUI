@@ -42,8 +42,9 @@ function Page.new(window, options)
             Parent = self.Frame,
         })
         column.ScrollBarImageTransparency = 0.4
-        Util.List(column, GAP)
+        local layout = Util.List(column, GAP)
         Util.Padding(column, 1, 6, 14, 1)
+        Util.AutoCanvas(column, layout)
         self.Columns[index] = column
     end
 

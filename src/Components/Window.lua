@@ -29,13 +29,15 @@ local COMPACT = 56
 local MIN_SIZE = Vector2.new(560, 380)
 
 local INTERFACE = {
-    Scale = false,           -- false = fit the screen
+    Scale = 1,               -- user multiplier on top of the screen fit
+    FitScreen = true,        -- scale with the resolution (1080p = 1)
     AutoExpand = true,
     Compact = false,
     ToggleKey = "RightShift",
     KeybindList = false,
     Watermark = false,
-    Acrylic = false,
+    Blur = "Off",            -- "Off" | "Screen" | "Window", see Components/Acrylic
+    BlurStrength = 12,
     ShowUser = true,         -- profile card in the sidebar
     HideUser = false,        -- streamer mode: hide name
     HideAvatar = false,
@@ -103,7 +105,8 @@ function Window.new(library, def)
     self.Overlays:SetWatermark(self.Interface.Watermark)
     if UIS.TouchEnabled then self.Overlays:SetMobileButton(true) end
     self.Acrylic = Acrylic.new(self.Root, self.Maid)
-    self.Acrylic:SetEnabled(self.Interface.Acrylic)
+    self.Acrylic.Strength = tonumber(self.Interface.BlurStrength) or 12
+    self.Acrylic:SetMode(self.Interface.Blur)
 
     if def.Settings ~= false then
         import("Addons/Settings")(self)
@@ -131,6 +134,7 @@ function Window:_loadState()
     for _, key in { "SubTabs", "Panels" } do
         if type(state.Interface[key]) ~= "table" then state.Interface[key] = {} end
     end
+    if type(state.Interface.Scale) ~= "number" then state.Interface.Scale = nil end
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
     for key, value in defaults do
@@ -216,7 +220,9 @@ function Window:_build()
         Active = true,
         Theme = {
             BackgroundColor3 = function(t) return t.Gradient and Color3.new(1, 1, 1) or t.Background end,
-            BackgroundTransparency = "WindowTransparency",
+            BackgroundTransparency = function(t)
+                return t._windowBlur and math.max(t.WindowTransparency, 0.35) or t.WindowTransparency
+            end,
         },
         Parent = Layer.Main,
     }))
@@ -464,7 +470,7 @@ function Window:_build()
         Parent = sidebar,
     })
     Util.Padding(list, 10, 10, 10, 10)
-    Util.List(list, 3)
+    Util.AutoCanvas(list, Util.List(list, 3))
     self.TabList = list
 
     local bottom = Util.New("Frame", {
@@ -577,8 +583,10 @@ function Window:_build()
     self:SetCompact(self.Interface.Compact, true)
     self:_fitScale()
     self.Maid:Give(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-        if not self.Interface.Scale then self:_fitScale() end
+        self:_fitScale()
+        task.defer(function() self:_clampRoot() end)
     end))
+    task.defer(function() self:_clampRoot() end)
 end
 
 function Window:_userCard(parent)
@@ -760,28 +768,55 @@ function Window:SetCompact(compact, instant)
     end
 end
 
+-- final scale = (screen fit or 1) x user multiplier; with the fit on the window always stays on screen
 function Window:_fitScale()
-    local scale = self.Interface.Scale
-    if not scale then
-        local viewport = Layer.Bounds()
-        local size = self.Root.Size
-        scale = math.min(1, (viewport.X - 24) / size.X.Offset, (viewport.Y - 24) / size.Y.Offset)
-        scale = math.clamp(scale, 0.45, 1)
+    local scale = math.clamp(tonumber(self.Interface.Scale) or 1, 0.25, 4)
+    if self.Interface.FitScreen ~= false then
+        local bounds = Layer.Bounds()
+        local size = self.Minimized and self._restoreSize or self.Root.Size
+        local viewport = workspace.CurrentCamera.ViewportSize
+        scale *= math.clamp(viewport.Y / 1080, 0.5, 2)
+        scale = math.min(scale, (bounds.X - 24) / size.X.Offset, (bounds.Y - 24) / size.Y.Offset)
     end
-    self:SetScale(scale, true)
+    self:_applyScale(math.clamp(scale, 0.35, 3))
 end
 
-function Window:SetScale(scale, auto)
+function Window:_applyScale(scale)
     self.Scale = scale
     self.UIScale.Scale = scale
     Layer.SetScale(scale)
     for _, panel in self.Panels do
         if not panel.Def.Hud then panel.UIScale.Scale = scale end
     end
-    if not auto then
-        self.Interface.Scale = scale
-        self:SaveState()
-    end
+end
+
+-- "Off" | "Screen" | "Window"
+function Window:SetBlur(mode)
+    self.Interface.Blur = mode
+    self.Acrylic:SetMode(mode)
+    self:SaveState()
+end
+
+-- multiplier on top of the screen fit (1 = 100 %)
+function Window:SetScale(multiplier)
+    self.Interface.Scale = multiplier
+    self:SaveState()
+    self:_fitScale()
+end
+
+function Window:SetFitScreen(on)
+    self.Interface.FitScreen = on and true or false
+    self:SaveState()
+    self:_fitScale()
+end
+
+-- keeps at least part of the window on screen after a resolution change
+function Window:_clampRoot()
+    local root, bounds = self.Root, Layer.Bounds()
+    local position, size = root.AbsolutePosition, root.AbsoluteSize
+    local dx = math.clamp(position.X, 60 - size.X, bounds.X - 60) - position.X
+    local dy = math.clamp(position.Y, 0, bounds.Y - 60) - position.Y
+    if dx ~= 0 or dy ~= 0 then root.Position += UDim2.fromOffset(dx, dy) end
 end
 
 function Window:SetMinimized(minimized)

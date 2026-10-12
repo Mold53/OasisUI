@@ -36,7 +36,7 @@ return {
         Stroke = rgb(88, 92, 110), Divider = rgb(52, 54, 66),
     }),
 
-    -- greyscale, closest to the original sapphire look
+    -- greyscale
     Obsidian = palette({
         Accent = rgb(222, 222, 228), AccentAlt = rgb(120, 120, 130),
         Background = rgb(5, 5, 6), BackgroundAlt = rgb(48, 48, 52),

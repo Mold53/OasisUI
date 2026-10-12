@@ -23,14 +23,32 @@ Theme.StyleDefaults = {
     StrokeTransparency   = 0.55,
     Radius               = 12,
     ElementRadius        = 8,
-    Font                 = "GothamSSm",
+    Font                 = "Montserrat",
     AnimSpeed            = 1,
     Gradient             = true,
     GradientRotation     = 45,
     AnimatedTitle        = true,
 }
 
-Theme.Fonts = { "GothamSSm", "BuilderSans", "Montserrat", "Ubuntu", "Nunito", "Roboto", "SourceSansPro", "Arimo", "Jura", "Oswald", "TitilliumWeb" }
+-- { family, display name }; only families that render differently (GothamSSm draws Montserrat, Arial draws Arimo)
+Theme.Fonts = {
+    { "Montserrat", "Montserrat" },
+    { "BuilderSans", "Builder Sans" },
+    { "Ubuntu", "Ubuntu" },
+    { "Nunito", "Nunito" },
+    { "Roboto", "Roboto" },
+    { "SourceSansPro", "Source Sans" },
+    { "Arimo", "Arimo" },
+    { "JosefinSans", "Josefin Sans" },
+    { "TitilliumWeb", "Titillium" },
+    { "Oswald", "Oswald" },
+    { "Jura", "Jura" },
+    { "Zekton", "Zekton" },
+    { "Michroma", "Michroma" },
+    { "Merriweather", "Merriweather" },
+    { "FredokaOne", "Fredoka" },
+    { "RobotoMono", "Roboto Mono" },
+}
 
 -- strong keys: roblox recycles instance wrappers, so a weak table would lose live bindings;
 -- unparented (destroyed) instances are dropped by Apply and Sweep
@@ -148,7 +166,10 @@ end
 function Theme.Export()
     local out = { Palette = Theme.Palette, Tokens = {} }
     for key, value in Theme.Current do
-        out.Tokens[key] = typeof(value) == "Color3" and ("#" .. value:ToHex()) or value
+        -- "_" tokens are runtime state, not part of a theme
+        if key:sub(1, 1) ~= "_" then
+            out.Tokens[key] = typeof(value) == "Color3" and ("#" .. value:ToHex()) or value
+        end
     end
     return out
 end

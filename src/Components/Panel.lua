@@ -124,7 +124,7 @@ function Panel.new(window, def)
         Parent = frame,
     })
     Util.Padding(body, 10, 12, 12, 12)
-    Util.List(body, 9)
+    Util.AutoCanvas(body, Util.List(body, 9))
     self.Body = body
     self:_mountChildren(body, self.Maid)
 

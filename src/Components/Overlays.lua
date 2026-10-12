@@ -59,15 +59,36 @@ function Overlays.new(window)
     return self
 end
 
+-- keeps a hud frame fully on screen (resolution changes, old saves)
+local function clamp(frame)
+    local bounds, size = Layer.Bounds(), frame.AbsoluteSize
+    local position = frame.AbsolutePosition
+    local x = math.clamp(position.X, 0, math.max(0, bounds.X - size.X))
+    local y = math.clamp(position.Y, 0, math.max(0, bounds.Y - size.Y))
+    frame.Position = UDim2.fromOffset(x, y)
+end
+
+-- positions are stored as absolute pixels, so a scale part can never get lost
 local function savePosition(window, key, frame)
-    window.Interface[key] = { math.floor(frame.Position.X.Offset), math.floor(frame.Position.Y.Offset) }
+    clamp(frame)
+    window.Interface[key] = { math.floor(frame.AbsolutePosition.X), math.floor(frame.AbsolutePosition.Y) }
     window:SaveState()
 end
 
+-- fallback(bounds) -> Vector2 for the first placement
 local function restore(window, key, frame, fallback)
     local saved = window.Interface[key]
-    frame.Position = type(saved) == "table" and UDim2.fromOffset(saved[1], saved[2]) or fallback
+    local point = type(saved) == "table" and Vector2.new(tonumber(saved[1]) or 0, tonumber(saved[2]) or 0) or fallback(Layer.Bounds())
+    frame.Position = UDim2.fromOffset(point.X, point.Y)
+    task.defer(function() if frame.Parent then clamp(frame) end end)
+    window.Maid:Give(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        task.defer(function() if frame.Parent then clamp(frame) end end)
+    end))
 end
+
+local function keybindsHome(bounds) return Vector2.new(14, math.floor(bounds.Y * 0.4)) end
+local function watermarkHome() return Vector2.new(14, 14) end
+local function mobileHome(bounds) return Vector2.new(14, math.floor(bounds.Y * 0.5) - 23) end
 
 -- keybind list ----------------------------------------------------------------
 
@@ -107,7 +128,7 @@ function Overlays:_buildBinds()
     local rule = Util.New("Frame", { Size = UDim2.new(1, 0, 0, 1), LayoutOrder = 1, Theme = { BackgroundColor3 = "Divider" }, Parent = frame })
     Util.New("UIGradient", { Transparency = NumberSequence.new(0, 1), Parent = rule })
 
-    restore(window, "KeybindListPos", frame, UDim2.new(0, 14, 0.4, 0))
+    restore(window, "KeybindListPos", frame, keybindsHome)
     window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "KeybindListPos", frame) end end }))
     self.Binds, self.BindScale, self.BindHead, self.BindRule, self.BindCounter = frame, scale, head, rule, counter
     self.BindRows = {}
@@ -138,7 +159,8 @@ function Overlays:ResetPosition(which)
     local window = self.Window
     if which == "Keybinds" and self.Binds then
         window.Interface.KeybindListPos = nil
-        self.Binds.Position = UDim2.new(0, 14, 0.4, 0)
+        local home = keybindsHome(Layer.Bounds())
+        self.Binds.Position = UDim2.fromOffset(home.X, home.Y)
     elseif which == "Watermark" and self.Watermark then
         window.Interface.WatermarkPos = nil
         self.Watermark.Position = UDim2.fromOffset(14, 14)
@@ -325,7 +347,7 @@ function Overlays:SetWatermark(on)
         Util.New("UIGradient", { Rotation = 45, Theme = { Color = function(t) return ColorSequence.new(t.Accent, t.AccentAlt) end }, Parent = logo })
         local text = Util.Label({ TextSize = 11, Weight = Enum.FontWeight.Medium, RichText = true, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = 2, Parent = frame })
         local scale = Util.New("UIScale", { Scale = window.Interface.WatermarkStyle.Scale / 100, Parent = frame })
-        restore(window, "WatermarkPos", frame, UDim2.fromOffset(14, 14))
+        restore(window, "WatermarkPos", frame, watermarkHome)
         window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "WatermarkPos", frame) end end }))
 
         local frames, elapsed, fps = 0, 0, 0
@@ -401,7 +423,7 @@ function Overlays:SetMobileButton(on)
             Parent = button,
         })
         Util.New("UIGradient", { Rotation = 45, Theme = { Color = function(t) return ColorSequence.new(t.Accent, t.AccentAlt) end }, Parent = logo })
-        restore(window, "MobilePos", button, UDim2.new(0, 14, 0.5, -23))
+        restore(window, "MobilePos", button, mobileHome)
         window.Maid:Give(Drag.Attach(button, button, {
             OnEnd = function(moved)
                 if moved then
