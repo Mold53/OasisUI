@@ -74,7 +74,7 @@ function Row.new(element, parent, maid, options)
                 -- matches of the running search stand out
                 local query = element.Window.Query
                 if query and element:Matches(query) then return t.Accent end
-                return t.Text
+                return element.Def.Risky and t.Danger or t.Text
             end,
         },
         LayoutOrder = 1,

@@ -1,4 +1,4 @@
--- OasisUI v1.0.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.1.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -126,10 +126,6 @@ return function(window)
     layout:Toggle({ Title = "Compact sidebar", Default = interface.Compact, Callback = function(on)
         window:SetCompact(on)
         window:SaveState()
-    end })
-    layout:Toggle({ Title = "Hide username", Default = interface.HideUser, Callback = function(on)
-        window:SetInterface("HideUser", on)
-        if window.PaintUser then window.PaintUser() end
     end })
 
     -- keep the controls in sync when a preset or an import changes the theme
@@ -285,14 +281,6 @@ return function(window)
     -- menu --------------------------------------------------------------------
     local menu = tab:Section({ Title = "Menu", Icon = "sliders-horizontal", Side = "Right", Id = "settings/menu" })
     menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding, Tooltip = "Opens and hides the menu." })
-    menu:Toggle({ Title = "Keybind list", Default = interface.KeybindList, Callback = function(on)
-        window.Overlays:SetKeybindList(on)
-        window:SaveState()
-    end })
-    menu:Toggle({ Title = "Watermark", Default = interface.Watermark, Callback = function(on)
-        window.Overlays:SetWatermark(on)
-        window:SaveState()
-    end })
     menu:Dropdown({
         Title = "Notifications",
         Values = { "BottomRight", "TopRight", "BottomLeft", "TopLeft" },
@@ -306,14 +294,107 @@ return function(window)
         { Title = "Test", Icon = "bell", Callback = function()
             notify("Notification", "This is how messages look.", "Info")
         end },
+        { Title = "Center", Icon = "move", Callback = function() window:Center() end },
         { Title = "Reset layout", Icon = "layout-grid", Confirm = "Confirm", Callback = function()
-            for _, other in window.Tabs do other.Page:ResetLayout() end
+            for _, other in window.Tabs do other:ResetLayout() end
             window.Favorites:ResetLayout()
         end },
     })
     menu:Label({ Text = "OasisUI", Value = "v" .. tostring(library.Version) })
     menu:Button({ Title = "Clear favorites", Icon = "star-off", Style = "Ghost", Confirm = "Click again to clear", Callback = function() window:ClearFavorites() end })
     menu:Button({ Title = "Unload", Icon = "power", Style = "Danger", Confirm = "Click again to unload", Callback = function() library:Unload() end })
+
+    -- overlays ----------------------------------------------------------------
+    local overlays = window.Overlays
+    local hud = tab:Section({ Title = "Overlays", Description = "Keybind list and watermark.", Icon = "layout-list", Side = "Right", Id = "settings/overlays" })
+    local style = interface.KeybindStyle
+    local function bindStyle(key)
+        return function(value) overlays:SetKeybindStyle(key, value) end
+    end
+    local list = hud:Toggle({ Title = "Keybind list", Default = interface.KeybindList, Callback = function(on)
+        overlays:SetKeybindList(on)
+        window:SaveState()
+    end })
+    local listOptions = hud:Group({ Title = "Keybind list options", Icon = "keyboard" })
+    listOptions:Dropdown({ Title = "Show", Values = { "All", "Active" }, Default = style.Show, Callback = bindStyle("Show") })
+    listOptions:Dropdown({ Title = "Sort by", Values = { "Added", "Name", "Key", "Mode", "Active first" }, Default = style.Sort, Callback = bindStyle("Sort") })
+    listOptions:Toggle({ Title = "Group by mode", Description = "Toggle, Hold and Always under their own caption.", Default = style.Group, Callback = bindStyle("Group") })
+    listOptions:Dropdown({ Title = "Layout", Values = overlays.Layouts, Default = style.Layout, Callback = bindStyle("Layout") })
+    listOptions:Segmented({ Title = "Mode text", Values = { "Full", "Short", "Hidden" }, Default = style.ModeText, Callback = bindStyle("ModeText") })
+    listOptions:Segmented({ Title = "Key style", Values = { "Pill", "Brackets", "Plain" }, Default = style.KeyStyle, Callback = bindStyle("KeyStyle") })
+    listOptions:Slider({ Title = "Size", Min = 50, Max = 200, Step = 5, Suffix = "%", Default = style.Scale, Callback = bindStyle("Scale") })
+    listOptions:Slider({ Title = "Width", Min = 150, Max = 400, Step = 5, Suffix = "px", Default = style.Width, Callback = bindStyle("Width") })
+    listOptions:Slider({ Title = "Transparency", Min = 0, Max = 90, Suffix = "%", Default = style.Transparency, Callback = bindStyle("Transparency") })
+    listOptions:Toggle({ Title = "Title bar", Default = style.Title, Callback = bindStyle("Title") })
+    listOptions:Toggle({ Title = "Include menu key", Default = style.MenuKey, Callback = bindStyle("MenuKey") })
+    listOptions:Toggle({ Title = "Hide while the menu is open", Default = style.HideWithMenu, Callback = bindStyle("HideWithMenu") })
+    listOptions:Button({ Title = "Reset position", Icon = "rotate-ccw", Style = "Ghost", Callback = function() overlays:ResetPosition("Keybinds") end })
+    listOptions:DependsOn(list, nil, "Hide")
+
+    local marks = interface.WatermarkStyle
+    local function markStyle(key)
+        return function(value) overlays:SetWatermarkStyle(key, value) end
+    end
+    local watermark = hud:Toggle({ Title = "Watermark", Default = interface.Watermark, Callback = function(on)
+        overlays:SetWatermark(on)
+        window:SaveState()
+    end })
+    local markOptions = hud:Group({ Title = "Watermark options", Icon = "tag" })
+    markOptions:Toggle({ Title = "Title", Default = marks.Title, Callback = markStyle("Title") })
+    markOptions:Toggle({ Title = "Frame rate", Default = marks.Fps, Callback = markStyle("Fps") })
+    markOptions:Toggle({ Title = "Ping", Default = marks.Ping, Callback = markStyle("Ping") })
+    markOptions:Toggle({ Title = "Time", Default = marks.Time, Callback = markStyle("Time") })
+    markOptions:Toggle({ Title = "Display name", Default = marks.User, Callback = markStyle("User") })
+    markOptions:Input({ Title = "Custom text", Placeholder = "Shown after the title", Default = marks.Text, MaxLength = 40, Callback = markStyle("Text") })
+    markOptions:Slider({ Title = "Size", Min = 50, Max = 200, Step = 5, Suffix = "%", Default = marks.Scale, Callback = markStyle("Scale") })
+    markOptions:Button({ Title = "Reset position", Icon = "rotate-ccw", Style = "Ghost", Callback = function() overlays:ResetPosition("Watermark") end })
+    markOptions:DependsOn(watermark, nil, "Hide")
+
+    -- behaviour ---------------------------------------------------------------
+    local behaviour = tab:Section({ Title = "Behaviour", Icon = "settings-2", Side = "Left", Id = "settings/behaviour" })
+    local binding = behaviour:Group({ Title = "Binding keys", Icon = "keyboard", Opened = true })
+    binding:Segmented({
+        Title = "Click outside while binding",
+        Values = { "Keep", "Clear" },
+        Default = interface.BindClickOutside,
+        Tooltip = "Keep leaves the old key, Clear removes it.",
+        Callback = function(value)
+            window:SetInterface("BindClickOutside", value)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Segmented({
+        Title = "Escape while binding",
+        Values = { "Keep", "Clear" },
+        Default = interface.BindEscape,
+        Callback = function(value)
+            window:SetInterface("BindEscape", value)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Toggle({
+        Title = "Allow mouse buttons",
+        Description = "Right and middle mouse button can be bound.",
+        Default = interface.BindMouse ~= false,
+        Callback = function(on)
+            window:SetInterface("BindMouse", on)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Label({ Text = "Backspace or Delete always clears a key." })
+    local profile = behaviour:Group({ Title = "Profile", Icon = "user-round", Opened = true })
+    profile:Toggle({ Title = "Profile card", Default = interface.ShowUser ~= false, Callback = function(on)
+        window:SetInterface("ShowUser", on)
+        window:_layoutSidebar()
+    end })
+    profile:Toggle({ Title = "Hide avatar", Default = interface.HideAvatar, Callback = function(on)
+        window:SetInterface("HideAvatar", on)
+        if window.PaintUser then window.PaintUser() end
+    end })
+    profile:Toggle({ Title = "Streamer mode", Description = "Hides your name in the menu.", Default = interface.HideUser, Callback = function(on)
+        window:SetInterface("HideUser", on)
+        if window.PaintUser then window.PaintUser() end
+    end })
 
     window.SettingsTab = tab
     return tab
@@ -449,6 +530,7 @@ local KINDS = {
     Group = { "Group" },
     Image = { "Image" },
     Code = { "Code" },
+    Log = { "Log" },
 }
 Container.Kinds = KINDS
 
@@ -665,8 +747,10 @@ function Dialog.Open(root, options)
     end
 
     local buttons = options.Buttons or { { Title = "OK", Style = "Primary" } }
+    local submit
     for index, spec in buttons do
         local style = STYLES[spec.Style or (index == #buttons and "Primary" or "Secondary")] or STYLES.Secondary
+        local state = { Hover = false }
         local button = Util.New("TextButton", {
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(72, 30),
@@ -674,12 +758,18 @@ function Dialog.Open(root, options)
             TextSize = 12,
             LayoutOrder = index,
             ZIndex = 83,
-            Theme = { BackgroundColor3 = style.Bg, TextColor3 = style.Text, FontFace = Theme.Font(Enum.FontWeight.SemiBold) },
+            Theme = {
+                BackgroundColor3 = function(t) return state.Hover and t[style.Bg]:Lerp(t.Text, 0.1) or t[style.Bg] end,
+                TextColor3 = style.Text,
+                FontFace = Theme.Font(Enum.FontWeight.SemiBold),
+            },
             Parent = row,
         })
         Util.Corner("ElementRadius", button)
         Util.Padding(button, 0, 14, 0, 14)
-        button.MouseButton1Click:Connect(function()
+        Util.Feedback(button, state)
+        local function press()
+            if closed then return end
             local keep = false
             if spec.Callback then
                 local ok, result = pcall(spec.Callback, box and box.Text or nil, handle)
@@ -687,6 +777,14 @@ function Dialog.Open(root, options)
                 keep = result == false
             end
             if not keep then handle:Close() end
+        end
+        button.MouseButton1Click:Connect(press)
+        if style == STYLES.Primary or style == STYLES.Danger then submit = press end
+    end
+    -- Enter in the text field presses the primary button
+    if box then
+        box.FocusLost:Connect(function(enter)
+            if enter and submit then submit() end
         end)
     end
 
@@ -895,7 +993,7 @@ local Tooltip = import("Components/Tooltip")
 
 -- sapphire style feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
---      Opened, Side ("Left" | "Right"), Callback(enabled)
+--      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
 Module.__index = Module
 Container.Apply(Module)
@@ -936,6 +1034,7 @@ function Module.new(tab, def)
             Key = spec.Key or spec.Default,
             Mode = spec.Mode,
             Modes = spec.Modes or { "Toggle", "Hold" },
+            Capture = spec,
             Press = function(binding)
                 if self.Locked then return end
                 self:SetEnabled(binding.Mode == "Hold" or not self.Enabled)
@@ -1087,7 +1186,7 @@ function Module:_menu(view, point)
         table.insert(items, { Title = "Move to other column", Icon = "columns-2", Callback = function() view.Page:MoveToOther(view) end })
     end
     if view.Source then
-        table.insert(items, { Title = "Open in " .. self.Tab.Title, Icon = "external-link", Callback = function() window:SelectTab(self.Tab, self) end })
+        table.insert(items, { Title = "Open in " .. (self.Tab.Path or self.Tab.Title), Icon = "external-link", Callback = function() window:SelectTab(self.Tab, self) end })
     end
     table.insert(items, { Title = "Reset settings", Icon = "rotate-ccw", Danger = true, Callback = function() self:Reset() end })
     Menu.Open({ Point = point, Items = items, Title = self.Title, Width = 190 })
@@ -1164,7 +1263,10 @@ function Module:Render(parent, maid, view)
         Size = UDim2.fromScale(0, 1),
         TextTruncate = Enum.TextTruncate.AtEnd,
         LayoutOrder = 2,
-        Theme = { TextColor3 = function(t) return self.Locked and t.TextDim or t.Text end },
+        Theme = { TextColor3 = function(t)
+            if self.Locked then return t.TextDim end
+            return self.Def.Risky and t.Danger or t.Text
+        end },
         Parent = left,
     })
     Util.New("UISizeConstraint", { MaxSize = Vector2.new(view.Source and 140 or 190, 18), Parent = title })
@@ -1178,7 +1280,7 @@ function Module:Render(parent, maid, view)
         })
         Util.Corner(4, tag)
         Util.Padding(tag, 0, 6, 0, 6)
-        Util.Label({ Text = self.Tab.Title, TextSize = 10, Color = "TextMuted", Weight = Enum.FontWeight.Medium, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = tag })
+        Util.Label({ Text = self.Tab.Path or self.Tab.Title, TextSize = 10, Color = "TextMuted", Weight = Enum.FontWeight.Medium, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = tag })
     end
     local lockIcon = Util.Icon("lock", { Size = UDim2.fromOffset(12, 12), Color = "Danger", LayoutOrder = 4, Visible = self.Locked, Parent = left })
 
@@ -1560,14 +1662,19 @@ function Notification.Notify(options)
         })
         Util.List(row, 6, Enum.FillDirection.Horizontal)
         for index, spec in options.Buttons do
+            local style = spec.Style or (index == 1 and "Primary" or "Secondary")
+            local state = { Hover = false }
             local button = Util.New("TextButton", {
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2.fromOffset(0, 22),
                 LayoutOrder = index,
                 ZIndex = 154,
                 Theme = {
-                    BackgroundColor3 = index == 1 and "Accent" or "ElevatedHover",
-                    TextColor3 = index == 1 and "OnAccent" or "Text",
+                    BackgroundColor3 = function(t)
+                        local base = style == "Primary" and t.Accent or (style == "Danger" and t.Danger or t.ElevatedHover)
+                        return state.Hover and base:Lerp(t.Text, 0.12) or base
+                    end,
+                    TextColor3 = (style == "Primary" or style == "Danger") and "OnAccent" or "Text",
                     FontFace = Theme.Font(Enum.FontWeight.Medium),
                 },
                 Text = spec.Title,
@@ -1576,9 +1683,10 @@ function Notification.Notify(options)
             })
             Util.Corner(5, button)
             Util.Padding(button, 0, 10, 0, 10)
+            Util.Feedback(button, state)
             button.MouseButton1Click:Connect(function()
                 Util.Safe(spec.Callback)
-                handle:Close()
+                if spec.KeepOpen ~= true then handle:Close() end
             end)
         end
     end
@@ -1623,15 +1731,62 @@ __modules["Components/Overlays"] = function(...)
 local import = ...
 local Services = import("Core/Services")
 local Util = import("Core/Util")
+local Theme = import("Core/Theme")
 local Drag = import("Core/Drag")
+local Keybinds = import("Core/Keybinds")
 local Layer = import("Components/Layer")
 
 -- hud panels of a window: keybind list, watermark, mobile menu button
 local Overlays = {}
 Overlays.__index = Overlays
 
+Overlays.KeybindDefaults = {
+    Show = "All",                     -- "All" | "Active"
+    Sort = "Added",                   -- "Added" | "Name" | "Key" | "Mode" | "Active first"
+    Group = false,                    -- one caption per mode
+    Layout = "Name · Key · Mode",     -- column order, see LAYOUTS
+    ModeText = "Full",                -- "Full" | "Short" | "Hidden"
+    KeyStyle = "Pill",                -- "Pill" | "Brackets" | "Plain"
+    Title = true,
+    MenuKey = false,
+    HideWithMenu = false,
+    Scale = 100,
+    Width = 210,
+    Transparency = 12,
+}
+Overlays.WatermarkDefaults = {
+    Title = true,
+    Fps = true,
+    Ping = true,
+    Time = true,
+    User = false,
+    Text = "",
+    Scale = 100,
+}
+Overlays.Layouts = { "Name · Key · Mode", "Name · Mode · Key", "Mode · Name · Key", "Key · Name · Mode" }
+Overlays.Sorts = { "Added", "Name", "Key", "Mode", "Active first" }
+local LAYOUTS = {
+    ["Name · Key · Mode"] = { "Name", "Key", "Mode" },
+    ["Name · Mode · Key"] = { "Name", "Mode", "Key" },
+    ["Mode · Name · Key"] = { "Mode", "Name", "Key" },
+    ["Key · Name · Mode"] = { "Key", "Name", "Mode" },
+}
+local MODE_ORDER = { Toggle = 1, Hold = 2, Always = 3 }
+
+local function defaults(target, source)
+    for key, value in source do
+        if target[key] == nil then target[key] = value end
+    end
+    return target
+end
+
 function Overlays.new(window)
-    return setmetatable({ Window = window, _queued = false }, Overlays)
+    local interface = window.Interface
+    interface.KeybindStyle = defaults(type(interface.KeybindStyle) == "table" and interface.KeybindStyle or {}, Overlays.KeybindDefaults)
+    interface.WatermarkStyle = defaults(type(interface.WatermarkStyle) == "table" and interface.WatermarkStyle or {}, Overlays.WatermarkDefaults)
+    local self = setmetatable({ Window = window, _queued = false }, Overlays)
+    window.Maid:Give(Keybinds.Activity:Connect(function() self:RefreshBinds() end))
+    return self
 end
 
 local function savePosition(window, key, frame)
@@ -1644,41 +1799,90 @@ local function restore(window, key, frame, fallback)
     frame.Position = type(saved) == "table" and UDim2.fromOffset(saved[1], saved[2]) or fallback
 end
 
-local function panel(window, name, icon, title)
+-- keybind list ----------------------------------------------------------------
+
+function Overlays:_buildBinds()
+    local window = self.Window
+    local style = window.Interface.KeybindStyle
     local frame = window.Maid:Give(Util.New("Frame", {
-        Name = name,
-        Size = UDim2.fromOffset(200, 0),
+        Name = "Keybinds",
+        Size = UDim2.fromOffset(style.Width, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         Active = true,
-        Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function(t) return math.min(t.SurfaceTransparency, 0.12) end },
+        Theme = {
+            BackgroundColor3 = "Surface",
+            BackgroundTransparency = function() return style.Transparency / 100 end,
+        },
         Parent = Layer.Hud,
     }))
     Util.Corner(8, frame)
     Util.Stroke(frame)
     Util.Padding(frame, 8, 10, 9, 10)
     Util.List(frame, 4)
-    local head = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), Parent = frame })
-    Util.Icon(icon, { Size = UDim2.fromOffset(13, 13), Position = UDim2.fromOffset(0, 2), Color = "Accent", Parent = head })
-    Util.Label({ Text = title, TextSize = 12, Weight = Enum.FontWeight.SemiBold, Position = UDim2.fromOffset(20, 0), Size = UDim2.new(1, -20, 1, 0), Parent = head })
+    local scale = Util.New("UIScale", { Scale = style.Scale / 100, Parent = frame })
+
+    local head = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 18), LayoutOrder = 0, Parent = frame })
+    Util.Icon("keyboard", { Size = UDim2.fromOffset(13, 13), Position = UDim2.fromOffset(0, 2), Color = "Accent", Parent = head })
+    Util.Label({ Text = "Keybinds", TextSize = 12, Weight = Enum.FontWeight.SemiBold, Position = UDim2.fromOffset(20, 0), Size = UDim2.new(1, -60, 1, 0), Parent = head })
+    local counter = Util.Label({
+        TextSize = 10,
+        Color = "TextMuted",
+        Weight = Enum.FontWeight.SemiBold,
+        TextXAlignment = Enum.TextXAlignment.Right,
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.fromScale(1, 0),
+        Size = UDim2.new(0, 40, 1, 0),
+        Parent = head,
+    })
     local rule = Util.New("Frame", { Size = UDim2.new(1, 0, 0, 1), LayoutOrder = 1, Theme = { BackgroundColor3 = "Divider" }, Parent = frame })
     Util.New("UIGradient", { Transparency = NumberSequence.new(0, 1), Parent = rule })
-    return frame
-end
 
--- keybind list ----------------------------------------------------------------
+    restore(window, "KeybindListPos", frame, UDim2.new(0, 14, 0.4, 0))
+    window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "KeybindListPos", frame) end end }))
+    self.Binds, self.BindScale, self.BindHead, self.BindRule, self.BindCounter = frame, scale, head, rule, counter
+    self.BindRows = {}
+end
 
 function Overlays:SetKeybindList(on)
     local window = self.Window
     window.Interface.KeybindList = on and true or false
-    if on and not self.Binds then
-        local frame = panel(window, "Keybinds", "keyboard", "Keybinds")
-        restore(window, "KeybindListPos", frame, UDim2.new(0, 14, 0.4, 0))
-        window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "KeybindListPos", frame) end end }))
-        self.Binds = frame
-        self.BindRows = {}
-    end
-    if self.Binds then self.Binds.Visible = window.Interface.KeybindList end
+    if on and not self.Binds then self:_buildBinds() end
+    self:UpdateVisibility()
     self:RefreshBinds()
+end
+
+function Overlays:SetKeybindStyle(key, value)
+    local style = self.Window.Interface.KeybindStyle
+    style[key] = value
+    if self.Binds then
+        self.Binds.Size = UDim2.fromOffset(style.Width, 0)
+        self.BindScale.Scale = style.Scale / 100
+        Theme.Refresh(self.Binds)
+    end
+    self:UpdateVisibility()
+    self:RefreshBinds()
+    self.Window:SaveState()
+end
+
+function Overlays:ResetPosition(which)
+    local window = self.Window
+    if which == "Keybinds" and self.Binds then
+        window.Interface.KeybindListPos = nil
+        self.Binds.Position = UDim2.new(0, 14, 0.4, 0)
+    elseif which == "Watermark" and self.Watermark then
+        window.Interface.WatermarkPos = nil
+        self.Watermark.Position = UDim2.fromOffset(14, 14)
+    end
+    window:SaveState()
+end
+
+function Overlays:UpdateVisibility()
+    local window = self.Window
+    if self.Binds then
+        local style = window.Interface.KeybindStyle
+        self.Binds.Visible = window.Interface.KeybindList and not (style.HideWithMenu and window.Visible)
+    end
+    if self.Watermark then self.Watermark.Visible = window.Interface.Watermark end
 end
 
 function Overlays:RefreshBinds()
@@ -1690,44 +1894,142 @@ function Overlays:RefreshBinds()
     end)
 end
 
-function Overlays:_paintBinds()
-    local frame = self.Binds
-    if not frame then return end
-    for _, row in self.BindRows do row:Destroy() end
-    table.clear(self.BindRows)
-    local order = 2
-    for _, owner in self.Window._binds do
+-- every bound owner as { Title, Binding, Active, Order }
+function Overlays:_entries()
+    local window = self.Window
+    local style = window.Interface.KeybindStyle
+    local list = {}
+    for order, owner in window._binds do
         local binding = owner.Binding
         if binding and binding.Key and owner.Visible ~= false then
             local title, active = owner:BindInfo()
-            local row = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 17), LayoutOrder = order, Parent = frame })
-            Util.Label({
-                Text = title,
-                TextSize = 11,
-                Weight = Enum.FontWeight.Medium,
-                Color = active and "Text" or "TextMuted",
-                Size = UDim2.new(1, -70, 1, 0),
-                TextTruncate = Enum.TextTruncate.AtEnd,
-                Parent = row,
-            })
-            local mode = binding.Mode ~= "Toggle" and (" · " .. binding.Mode:lower()) or ""
-            Util.Label({
-                Text = "[" .. Util.KeyLabel(binding.Key) .. "]" .. mode,
-                TextSize = 10,
-                Weight = Enum.FontWeight.SemiBold,
-                Color = active and "Accent" or "TextMuted",
-                TextXAlignment = Enum.TextXAlignment.Right,
-                AnchorPoint = Vector2.new(1, 0),
-                Position = UDim2.fromScale(1, 0),
-                Size = UDim2.new(0, 70, 1, 0),
-                Parent = row,
-            })
-            table.insert(self.BindRows, row)
-            order += 1
+            table.insert(list, { Title = title, Binding = binding, Active = active or binding.Held, Order = order })
         end
     end
-    if #self.BindRows == 0 then
-        table.insert(self.BindRows, Util.Label({ Text = "No keys bound", TextSize = 11, Color = "TextMuted", Size = UDim2.new(1, 0, 0, 17), LayoutOrder = 2, Parent = frame }))
+    local menu = window.MenuBinding
+    if style.MenuKey and menu and menu.Key then
+        table.insert(list, { Title = "Menu", Binding = menu, Active = window.Visible, Order = 0 })
+    end
+    if style.Show == "Active" then
+        for index = #list, 1, -1 do
+            if not list[index].Active then table.remove(list, index) end
+        end
+    end
+    local sort = style.Sort
+    table.sort(list, function(a, b)
+        if style.Group and a.Binding.Mode ~= b.Binding.Mode then
+            return (MODE_ORDER[a.Binding.Mode] or 9) < (MODE_ORDER[b.Binding.Mode] or 9)
+        end
+        if sort == "Name" then return a.Title:lower() < b.Title:lower() end
+        if sort == "Key" then return Util.KeyLabel(a.Binding.Key) < Util.KeyLabel(b.Binding.Key) end
+        if sort == "Mode" and a.Binding.Mode ~= b.Binding.Mode then
+            return (MODE_ORDER[a.Binding.Mode] or 9) < (MODE_ORDER[b.Binding.Mode] or 9)
+        end
+        if sort == "Active first" and a.Active ~= b.Active then return a.Active end
+        return a.Order < b.Order
+    end)
+    return list
+end
+
+local function keyCell(parent, entry, style, order)
+    local label = Util.KeyLabel(entry.Binding.Key)
+    if style.KeyStyle == "Brackets" then label = "[" .. label .. "]" end
+    local color = entry.Active and "Accent" or "TextMuted"
+    if style.KeyStyle == "Pill" then
+        local pill = Util.New("Frame", {
+            AutomaticSize = Enum.AutomaticSize.X,
+            Size = UDim2.fromOffset(0, 15),
+            LayoutOrder = order,
+            Theme = {
+                BackgroundColor3 = entry.Active and "Accent" or "Elevated",
+                BackgroundTransparency = function() return entry.Active and 0.75 or 0.2 end,
+            },
+            Parent = parent,
+        })
+        Util.Corner(4, pill)
+        Util.Padding(pill, 0, 5, 0, 5)
+        Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Color = color, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = pill })
+        return pill
+    end
+    return Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Color = color, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = order, Parent = parent })
+end
+
+function Overlays:_paintBinds()
+    local frame = self.Binds
+    if not frame then return end
+    local window = self.Window
+    local style = window.Interface.KeybindStyle
+    for _, row in self.BindRows do row:Destroy() end
+    table.clear(self.BindRows)
+    self.BindHead.Visible = style.Title
+    self.BindRule.Visible = style.Title
+
+    local entries = self:_entries()
+    local active = 0
+    for _, entry in entries do
+        if entry.Active then active += 1 end
+    end
+    self.BindCounter.Text = active .. "/" .. #entries
+
+    local columns = LAYOUTS[style.Layout] or LAYOUTS[Overlays.KeybindDefaults.Layout]
+    local order, group = 2, nil
+    for _, entry in entries do
+        local mode = entry.Binding.Mode
+        if style.Group and mode ~= group then
+            group = mode
+            local caption = Util.Label({
+                Text = string.upper(mode),
+                TextSize = 9,
+                Weight = Enum.FontWeight.Bold,
+                Color = "TextMuted",
+                Size = UDim2.new(1, 0, 0, 14),
+                LayoutOrder = order,
+                Parent = frame,
+            })
+            table.insert(self.BindRows, caption)
+            order += 1
+        end
+        local row = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 17), LayoutOrder = order, Parent = frame })
+        Util.List(row, 6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+        for index, column in columns do
+            if column == "Name" then
+                local name = Util.Label({
+                    Text = entry.Title,
+                    TextSize = 11,
+                    Weight = Enum.FontWeight.Medium,
+                    Color = entry.Active and "Text" or "TextMuted",
+                    TextTruncate = Enum.TextTruncate.AtEnd,
+                    Size = UDim2.new(0, 0, 1, 0),
+                    LayoutOrder = index,
+                    Parent = row,
+                })
+                Util.New("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill, Parent = name })
+            elseif column == "Key" then
+                keyCell(row, entry, style, index)
+            elseif column == "Mode" and style.ModeText ~= "Hidden" then
+                Util.Label({
+                    Text = style.ModeText == "Short" and mode:sub(1, 1) or mode,
+                    TextSize = 10,
+                    Color = "TextMuted",
+                    AutomaticSize = Enum.AutomaticSize.X,
+                    Size = UDim2.fromScale(0, 1),
+                    LayoutOrder = index,
+                    Parent = row,
+                })
+            end
+        end
+        table.insert(self.BindRows, row)
+        order += 1
+    end
+    if #entries == 0 then
+        table.insert(self.BindRows, Util.Label({
+            Text = style.Show == "Active" and "Nothing active" or "No keys bound",
+            TextSize = 11,
+            Color = "TextMuted",
+            Size = UDim2.new(1, 0, 0, 17),
+            LayoutOrder = 2,
+            Parent = frame,
+        }))
     end
 end
 
@@ -1752,26 +2054,60 @@ function Overlays:SetWatermark(on)
         local logo = Util.Icon(window.Def.Icon or "sparkles", { Size = UDim2.fromOffset(14, 14), LayoutOrder = 1, Theme = { ImageColor3 = function() return Color3.new(1, 1, 1) end }, Parent = frame })
         Util.New("UIGradient", { Rotation = 45, Theme = { Color = function(t) return ColorSequence.new(t.Accent, t.AccentAlt) end }, Parent = logo })
         local text = Util.Label({ TextSize = 11, Weight = Enum.FontWeight.Medium, RichText = true, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = 2, Parent = frame })
+        local scale = Util.New("UIScale", { Scale = window.Interface.WatermarkStyle.Scale / 100, Parent = frame })
         restore(window, "WatermarkPos", frame, UDim2.fromOffset(14, 14))
         window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "WatermarkPos", frame) end end }))
 
-        local frames, elapsed = 0, 0
+        local frames, elapsed, fps = 0, 0, 0
+        local function paint()
+            local style = window.Interface.WatermarkStyle
+            scale.Scale = style.Scale / 100
+            local current = Theme.Current
+            local accent = "#" .. current.Accent:ToHex()
+            local muted = "#" .. current.TextMuted:ToHex()
+            local parts = {}
+            if style.Title then table.insert(parts, string.format('<font color="%s"><b>%s</b></font>', accent, window.TitleLabel.Text)) end
+            local custom = self.WatermarkText
+            if type(custom) == "function" then
+                local ok, value = pcall(custom)
+                custom = ok and value or nil
+            end
+            if custom and custom ~= "" then table.insert(parts, tostring(custom)) end
+            if style.Text ~= "" then table.insert(parts, style.Text) end
+            if style.User then table.insert(parts, Services.Players.LocalPlayer.DisplayName) end
+            if style.Fps then table.insert(parts, fps .. " fps") end
+            if style.Ping then
+                local ping = 0
+                pcall(function() ping = math.floor(Services.Players.LocalPlayer:GetNetworkPing() * 1000 + 0.5) end)
+                table.insert(parts, ping .. " ms")
+            end
+            if style.Time then table.insert(parts, os.date("%H:%M")) end
+            text.Text = table.concat(parts, string.format(' <font color="%s">|</font> ', muted))
+        end
         window.Maid:Give(Services.RunService.RenderStepped:Connect(function(dt)
             frames += 1
             elapsed += dt
             if elapsed < 0.5 or not frame.Visible then return end
-            local fps = math.floor(frames / elapsed + 0.5)
+            fps = math.floor(frames / elapsed + 0.5)
             frames, elapsed = 0, 0
-            local ping = 0
-            pcall(function() ping = math.floor(Services.Players.LocalPlayer:GetNetworkPing() * 1000 + 0.5) end)
-            local accent = "#" .. window.Library.Theme.Current.Accent:ToHex()
-            local muted = "#" .. window.Library.Theme.Current.TextMuted:ToHex()
-            local sep = string.format(' <font color="%s">|</font> ', muted)
-            text.Text = string.format('<font color="%s"><b>%s</b></font>%s%d fps%s%d ms%s%s', accent, window.TitleLabel.Text, sep, fps, sep, ping, sep, os.date("%H:%M"))
+            paint()
         end))
-        self.Watermark = frame
+        self.Watermark, self.PaintWatermark = frame, paint
+        paint()
     end
-    if self.Watermark then self.Watermark.Visible = window.Interface.Watermark end
+    self:UpdateVisibility()
+end
+
+function Overlays:SetWatermarkStyle(key, value)
+    self.Window.Interface.WatermarkStyle[key] = value
+    if self.PaintWatermark then self.PaintWatermark() end
+    self.Window:SaveState()
+end
+
+-- text or function shown after the title; set by scripts with Window:SetWatermark
+function Overlays:SetWatermarkText(value)
+    self.WatermarkText = value
+    if self.PaintWatermark then self.PaintWatermark() end
 end
 
 -- mobile button ---------------------------------------------------------------
@@ -1826,7 +2162,7 @@ Page.__index = Page
 
 local GAP = 10
 
--- options: Id, Columns (1 | 2), Draggable, Source (cards show their tab), Empty (text), Header
+-- options: Id, Columns (1 | 2), Draggable, Source (cards show their tab), Empty (text), EmptyIcon, Parent
 function Page.new(window, options)
     local self = setmetatable({
         Window = window,
@@ -1843,7 +2179,7 @@ function Page.new(window, options)
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
         Visible = false,
-        Parent = window.Content,
+        Parent = options.Parent or window.Content,
     })
 
     local count = math.clamp(options.Columns or 2, 1, 2)
@@ -2100,6 +2436,207 @@ end
 return Page
 end
 
+__modules["Components/Panel"] = function(...)
+local import = ...
+local Util = import("Core/Util")
+local Maid = import("Core/Maid")
+local Drag = import("Core/Drag")
+local Layer = import("Components/Layer")
+local Container = import("Components/Container")
+local Tooltip = import("Components/Tooltip")
+
+-- small floating window that holds elements; Hud panels stay visible while the menu is hidden
+-- def: Title, Icon, Id, Size (Vector2 | UDim2), Position (UDim2), Closable, Collapsible, Resizable, Hud, Visible
+local Panel = {}
+Panel.__index = Panel
+Container.Apply(Panel)
+
+local HEAD = 34
+
+function Panel.new(window, def)
+    local self = setmetatable({
+        Window = window,
+        Def = def,
+        Kind = "Panel",
+        Title = def.Title or "Panel",
+        Id = def.Id or def.Title or "Panel",
+        Visible = def.Visible ~= false,
+        Collapsed = false,
+        Maid = Maid.new(),
+    }, Panel)
+    Container.Setup(self)
+    self.Module = self
+    window.Maid:Give(self.Maid)
+
+    local size = def.Size or Vector2.new(260, 320)
+    if typeof(size) == "Vector2" then size = UDim2.fromOffset(size.X, size.Y) end
+    self.Size = size
+    local frame = self.Maid:Give(Util.New("Frame", {
+        Name = "Panel",
+        Size = size,
+        ClipsDescendants = true,
+        Active = true,
+        Visible = false,
+        Theme = { BackgroundColor3 = "Background", BackgroundTransparency = function(t) return math.min(t.WindowTransparency, 0.15) end },
+        Parent = def.Hud and Layer.Hud or Layer.Main,
+    }))
+    self.Frame = frame
+    Util.Corner("Radius", frame)
+    Util.Stroke(frame)
+    self.UIScale = Util.New("UIScale", { Scale = def.Hud and 1 or window:GetScale(), Parent = frame })
+
+    local saved = window.Interface.Panels[self.Id]
+    if type(saved) == "table" then
+        frame.Position = UDim2.fromOffset(saved[1], saved[2])
+    elseif def.Position then
+        frame.Position = def.Position
+    else
+        -- next to the window: right side if it fits, else left, always on screen
+        local root, bounds = window.Root, Layer.Bounds()
+        local scale = self.UIScale.Scale
+        local width, height = size.X.Offset * scale, size.Y.Offset * scale
+        local x = root.AbsolutePosition.X + root.AbsoluteSize.X + 12
+        if x + width > bounds.X - 8 then x = root.AbsolutePosition.X - width - 12 end
+        x = math.clamp(x, 8, math.max(8, bounds.X - width - 8))
+        local y = math.clamp(root.AbsolutePosition.Y, 8, math.max(8, bounds.Y - height - 8))
+        frame.Position = UDim2.fromOffset(x, y)
+    end
+
+    local head = Util.New("Frame", { Name = "Head", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, HEAD), Parent = frame })
+    local x = 12
+    if def.Icon then
+        Util.Icon(def.Icon, { Size = UDim2.fromOffset(15, 15), Position = UDim2.new(0, 12, 0.5, -7), Color = "Accent", Parent = head })
+        x = 34
+    end
+    self.TitleLabel = Util.Label({
+        Text = self.Title,
+        TextSize = 13,
+        Weight = Enum.FontWeight.SemiBold,
+        Position = UDim2.fromOffset(x, 0),
+        Size = UDim2.new(1, -x - 60, 1, 0),
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        Parent = head,
+    })
+    local actions = Util.New("Frame", {
+        BackgroundTransparency = 1,
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -8, 0.5, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.fromOffset(0, 22),
+        Parent = head,
+    })
+    Util.List(actions, 2, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
+    local function action(icon, order, tip, fn)
+        local state = { Hover = false }
+        local button = Util.New("ImageButton", {
+            Size = UDim2.fromOffset(22, 22),
+            LayoutOrder = order,
+            Theme = { BackgroundColor3 = "ElevatedHover", BackgroundTransparency = function() return state.Hover and 0.3 or 1 end },
+            Parent = actions,
+        })
+        Util.Corner(5, button)
+        local image = Util.Icon(icon, { Size = UDim2.fromOffset(12, 12), Position = UDim2.fromOffset(5, 5), Color = "TextDim", Parent = button })
+        Util.Feedback(button, state)
+        self.Maid:Give(Tooltip.Attach(button, tip))
+        button.MouseButton1Click:Connect(fn)
+        return button, image
+    end
+    if def.Collapsible ~= false then
+        local _, image
+        _, image = action("chevron-up", 1, "Collapse", function()
+            self:SetCollapsed(not self.Collapsed)
+            image.Image = Util.IconId(self.Collapsed and "chevron-down" or "chevron-up")
+        end)
+    end
+    if def.Closable ~= false then
+        action("x", 2, "Close", function() self:SetVisible(false) end)
+    end
+    local rule = Util.New("Frame", { Position = UDim2.fromOffset(10, HEAD), Size = UDim2.new(1, -20, 0, 1), Theme = { BackgroundColor3 = "Divider" }, Parent = frame })
+    Util.New("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0), NumberSequenceKeypoint.new(0.85, 0), NumberSequenceKeypoint.new(1, 1) }), Parent = rule })
+
+    local body = Util.New("ScrollingFrame", {
+        Name = "Body",
+        Position = UDim2.fromOffset(0, HEAD + 1),
+        Size = UDim2.new(1, 0, 1, -HEAD - 1),
+        ScrollBarThickness = 2,
+        Theme = { ScrollBarImageColor3 = "TextMuted" },
+        Parent = frame,
+    })
+    Util.Padding(body, 10, 12, 12, 12)
+    Util.List(body, 9)
+    self.Body = body
+    self:_mountChildren(body, self.Maid)
+
+    self.Maid:Give(Drag.Attach(head, frame, {
+        Enabled = function() return not Util.Contains(actions, Util.Pointer()) end,
+        OnEnd = function(moved)
+            if not moved then return end
+            window.Interface.Panels[self.Id] = { math.floor(frame.AbsolutePosition.X), math.floor(frame.AbsolutePosition.Y) }
+            frame.Position = UDim2.fromOffset(frame.AbsolutePosition.X, frame.AbsolutePosition.Y)
+            window:SaveState()
+        end,
+    }))
+
+    if def.Resizable then
+        local grip = Util.New("TextButton", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -2, 1, -2), Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, ZIndex = 10, Parent = frame })
+        Util.Icon("grip-vertical", { Size = UDim2.fromOffset(10, 10), Position = UDim2.fromOffset(2, 2), Rotation = 45, Color = "TextMuted", Parent = grip })
+        grip.InputBegan:Connect(function(input)
+            if not Util.IsPress(input) or self.Collapsed then return end
+            local origin = frame.AbsoluteSize / self.UIScale.Scale
+            Drag.Follow(input, function(_, delta)
+                local scale = self.UIScale.Scale
+                frame.Size = UDim2.fromOffset(math.max(origin.X + delta.X / scale, 180), math.max(origin.Y + delta.Y / scale, 120))
+            end, function()
+                self.Size = frame.Size
+            end)
+        end)
+    end
+
+    self:SetVisible(self.Visible)
+    return self
+end
+
+function Panel:_add(kind, a, b)
+    return Container._add(self, kind, a, b)
+end
+
+function Panel:Matches(query)
+    return self:_matchesChildren(query)
+end
+
+function Panel:_shown()
+    return self.Visible and (self.Def.Hud or self.Window.Visible)
+end
+
+function Panel:SetVisible(visible)
+    self.Visible = visible and true or false
+    self.Frame.Visible = self:_shown()
+end
+
+function Panel:Show() self:SetVisible(true) end
+function Panel:Hide() self:SetVisible(false) end
+function Panel:ToggleVisible() self:SetVisible(not self.Visible) end
+
+function Panel:SetCollapsed(collapsed)
+    self.Collapsed = collapsed and true or false
+    Util.Tween(self.Frame, 0.25, { Size = self.Collapsed and UDim2.new(self.Size.X, UDim.new(0, HEAD)) or self.Size })
+end
+
+function Panel:SetTitle(text)
+    self.Title = text
+    self.TitleLabel.Text = text
+end
+
+function Panel:Destroy()
+    for _, child in table.clone(self.Children) do child:Destroy() end
+    local index = table.find(self.Window.Panels, self)
+    if index then table.remove(self.Window.Panels, index) end
+    self.Maid:Clean()
+end
+
+return Panel
+end
+
 __modules["Components/Popup"] = function(...)
 local import = ...
 local Services = import("Core/Services")
@@ -2311,7 +2848,7 @@ function Row.new(element, parent, maid, options)
                 -- matches of the running search stand out
                 local query = element.Window.Query
                 if query and element:Matches(query) then return t.Accent end
-                return t.Text
+                return element.Def.Risky and t.Danger or t.Text
             end,
         },
         LayoutOrder = 1,
@@ -2453,29 +2990,37 @@ end
 
 __modules["Components/Tab"] = function(...)
 local import = ...
+local Util = import("Core/Util")
+local Theme = import("Core/Theme")
 local Page = import("Components/Page")
 local Module = import("Components/Module")
 
--- a sidebar entry with its own page of modules
--- def: Title, Icon, Columns (1 | 2), Id
+-- a sidebar entry with its own page of modules, optionally split into sub-tabs
+-- def: Title, Icon, Columns (1 | 2), Id, Draggable, Empty
 local Tab = {}
 Tab.__index = Tab
 
-function Tab.new(window, def)
+local BAR = 30
+
+function Tab.new(window, def, parent)
     local self = setmetatable({
         Window = window,
         Def = def,
         Title = def.Title or def.Name or "Tab",
         Icon = def.Icon,
         Modules = {},
+        Parent = parent,
     }, Tab)
-    self.Id = def.Id or self.Title
+    self.Id = parent and (parent.Id .. "/" .. (def.Id or self.Title)) or (def.Id or self.Title)
+    self.Path = parent and (parent.Title .. " › " .. self.Title) or self.Title
     self.Page = Page.new(window, {
         Id = "tab:" .. self.Id,
         Columns = def.Columns or 2,
         Draggable = def.Draggable ~= false,
         Empty = def.Empty or "Nothing here yet.",
+        Parent = parent and parent.SubArea,
     })
+    self.Frame = self.Page.Frame
     return self
 end
 
@@ -2506,11 +3051,160 @@ end
 
 function Tab:SetTitle(text)
     self.Title = text
-    if self.Button then self.Button.Label.Text = text end
+    if self.Entry then self.Entry.Label.Text = text end
+    if self.Chip then self.Chip.Label.Text = text end
+end
+
+-- hides the sidebar entry (or the sub-tab chip) without removing anything
+function Tab:SetVisible(visible)
+    self.Visible = visible ~= false
+    local button = (self.Entry and self.Entry.Button) or (self.Chip and self.Chip.Button)
+    if button then button.Visible = self.Visible end
 end
 
 function Tab:ResetLayout()
     self.Page:ResetLayout()
+    for _, sub in self.SubTabs or {} do
+        if sub ~= self.Shared then sub.Page:ResetLayout() end
+    end
+end
+
+-- sub-tabs ----------------------------------------------------------------------
+
+function Tab:_enableSubTabs()
+    if self.SubTabs then return end
+    local window = self.Window
+    self.SubTabs = {}
+    local holder = Util.New("Frame", {
+        Name = "SubTabs",
+        BackgroundTransparency = 1,
+        Size = UDim2.fromScale(1, 1),
+        Visible = self.Page.Frame.Visible,
+        Parent = window.Content,
+    })
+    local bar = Util.New("ScrollingFrame", {
+        Name = "Bar",
+        Size = UDim2.new(1, 0, 0, BAR),
+        ScrollingDirection = Enum.ScrollingDirection.X,
+        AutomaticCanvasSize = Enum.AutomaticSize.X,
+        Parent = holder,
+    })
+    Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+    self.SubArea = Util.New("Frame", {
+        Name = "Area",
+        BackgroundTransparency = 1,
+        Position = UDim2.fromOffset(0, BAR + 8),
+        Size = UDim2.new(1, 0, 1, -BAR - 8),
+        Parent = holder,
+    })
+    self.SubBar, self.SubFrame = bar, holder
+    self.Frame = holder
+
+    -- modules added straight to the tab become its first sub-tab
+    if #self.Modules > 0 then
+        local shared = setmetatable({
+            Window = window,
+            Def = { Title = self.Def.MainTitle or "General" },
+            Title = self.Def.MainTitle or "General",
+            Modules = self.Modules,
+            Parent = self,
+            Page = self.Page,
+            Frame = self.Page.Frame,
+        }, Tab)
+        shared.Id, shared.Path = self.Id, self.Title
+        self.Page.Frame.Parent = self.SubArea
+        self.Shared = shared
+        self:_chip(shared)
+    end
+end
+
+function Tab:_chip(sub)
+    local state = { Selected = false, Hover = false }
+    local button = Util.New("TextButton", {
+        AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.fromOffset(0, 26),
+        LayoutOrder = #self.SubTabs + 1,
+        Theme = {
+            BackgroundColor3 = "Elevated",
+            BackgroundTransparency = function(t)
+                if state.Selected then return t.ElevatedTransparency end
+                return state.Hover and math.min(t.ElevatedTransparency + 0.45, 0.85) or 1
+            end,
+        },
+        Parent = self.SubBar,
+    })
+    Util.Corner(6, button)
+    Util.Padding(button, 0, 11, 0, sub.Icon and 9 or 11)
+    Util.List(button, 6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+    local stroke = Util.Stroke(button, function(t) return state.Selected and t.Accent or t.Stroke end, function(t)
+        return state.Selected and 0.55 or 1
+    end)
+    local icon
+    if sub.Icon then
+        icon = Util.Icon(sub.Icon, {
+            Size = UDim2.fromOffset(13, 13),
+            LayoutOrder = 1,
+            Theme = { ImageColor3 = function(t) return state.Selected and t.Accent or t.TextMuted end },
+            Parent = button,
+        })
+    end
+    local label = Util.Label({
+        Text = sub.Title,
+        TextSize = 12,
+        Weight = Enum.FontWeight.Medium,
+        AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.fromScale(0, 1),
+        LayoutOrder = 2,
+        Theme = { TextColor3 = function(t) return state.Selected and t.Text or (state.Hover and t.TextDim or t.TextMuted) end },
+        Parent = button,
+    })
+    local function paint()
+        for _, inst in { button, stroke, label, icon } do Theme.Refresh(inst, 0.15) end
+    end
+    sub.Chip = { Button = button, Label = label, State = state, Paint = paint }
+    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
+    button.MouseLeave:Connect(function() state.Hover = false; paint() end)
+    button.MouseButton1Click:Connect(function() self.Window:SelectTab(sub) end)
+    table.insert(self.SubTabs, sub)
+    if not self.ActiveSub then self:_showSub(sub, true) end
+end
+
+-- def: Title, Icon, Columns, Id, Draggable, Empty
+function Tab:SubTab(def)
+    if type(def) == "string" then def = { Title = def } end
+    def = def or {}
+    self:_enableSubTabs()
+    local sub = Tab.new(self.Window, def, self)
+    self:_chip(sub)
+    local saved = self.Window.Interface.SubTabs[self.Id]
+    if saved == sub.Id then self:_showSub(sub, true) end
+    return sub
+end
+Tab.AddSubTab = Tab.SubTab
+
+function Tab:_showSub(sub, silent)
+    self.ActiveSub = sub
+    for _, other in self.SubTabs do
+        local selected = other == sub
+        other.Page.Frame.Visible = selected
+        if other.Chip.State.Selected ~= selected then
+            other.Chip.State.Selected = selected
+            other.Chip.Paint()
+        end
+    end
+    if not silent then
+        self.Window.Interface.SubTabs[self.Id] = sub.Id
+        self.Window:SaveState()
+    end
+end
+
+-- the page that holds a module of this tab
+function Tab:PageOf(module)
+    if self.Page:Find(module) then return self.Page end
+    for _, sub in self.SubTabs or {} do
+        if sub.Page:Find(module) then return sub.Page end
+    end
+    return nil
 end
 
 return Tab
@@ -2580,8 +3274,9 @@ function Tooltip.Attach(gui, text)
         local mine = token
         task.delay(0.35, function()
             if mine ~= token then return end
-            local value = type(text) == "function" and text() or text
-            if value and value ~= "" then show(value) end
+            -- a function may return nil (no tooltip right now)
+            local value = if type(text) == "function" then text() else text
+            if type(value) == "string" and value ~= "" then show(value) end
         end)
     end)
     local leave = gui.MouseLeave:Connect(hide)
@@ -2759,7 +3454,9 @@ function Widgets.KeyPill(parent, binding, props)
             table.insert(items, "-")
         end
         table.insert(items, { Title = "Change key", Icon = "keyboard", Callback = function() binding:Capture() end })
-        table.insert(items, { Title = "Clear key", Icon = "x", Danger = true, Disabled = binding.Key == nil, Callback = function() binding:SetKey(nil) end })
+        if binding.CanUnbind then
+            table.insert(items, { Title = "Clear key", Icon = "x", Danger = true, Disabled = binding.Key == nil, Callback = function() binding:SetKey(nil) end })
+        end
         Menu.Open({ Anchor = pill, Items = items, Width = 150, Title = "Keybind" })
     end)
 
@@ -2783,6 +3480,7 @@ local Drag = import("Core/Drag")
 local Storage = import("Core/Storage")
 local Config = import("Core/Config")
 local Binding = import("Core/Binding")
+local Keybinds = import("Core/Keybinds")
 local Layer = import("Components/Layer")
 local Popup = import("Components/Popup")
 local Tooltip = import("Components/Tooltip")
@@ -2792,13 +3490,14 @@ local Page = import("Components/Page")
 local Tab = import("Components/Tab")
 local Overlays = import("Components/Overlays")
 local Acrylic = import("Components/Acrylic")
+local Panel = import("Components/Panel")
+local Menu = import("Components/Menu")
 
 local UIS = Services.UserInputService
 local Window = {}
 Window.__index = Window
 
 local TOP = 50
-local SIDEBAR = 164
 local COMPACT = 56
 local MIN_SIZE = Vector2.new(560, 380)
 
@@ -2810,11 +3509,18 @@ local INTERFACE = {
     KeybindList = false,
     Watermark = false,
     Acrylic = false,
-    HideUser = false,
+    ShowUser = true,         -- profile card in the sidebar
+    HideUser = false,        -- streamer mode: hide name
+    HideAvatar = false,
     NotifyPosition = "BottomRight",
+    BindClickOutside = "Keep",
+    BindEscape = "Keep",
+    BindMouse = true,
 }
 
--- def: Title, Subtitle, Icon, Folder, Size, Theme, Tags, ToggleKey, User, Settings, AutoLoad, MinSize
+-- def: Title, Subtitle, Icon, Folder, Size, MinSize, Theme, ThemeOverrides, Tags, ToggleKey, Search, Settings,
+--      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
+--      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
         Library = library,
@@ -2822,13 +3528,16 @@ function Window.new(library, def)
         Maid = Maid.new(),
         Tabs = {},
         Entries = {},
+        Panels = {},
         _binds = {},
         Visible = true,
         Minimized = false,
     }, Window)
     self.Folder = def.Folder or (def.Title and def.Title:gsub("[^%w_%- ]", "")) or "OasisUI"
+    self.SidebarWidth = def.SidebarWidth or 164
     self.Config = Config.new(self.Folder)
     self:_loadState()
+    self:ApplyBindOptions()
 
     if self.State.Theme then
         Theme.Import(self.State.Theme)
@@ -2892,6 +3601,9 @@ function Window:_loadState()
     state.Favorites = type(state.Favorites) == "table" and state.Favorites or {}
     state.Layout = type(state.Layout) == "table" and state.Layout or {}
     state.Interface = type(state.Interface) == "table" and state.Interface or {}
+    for _, key in { "SubTabs", "Panels" } do
+        if type(state.Interface[key]) ~= "table" then state.Interface[key] = {} end
+    end
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
     for key, value in defaults do
@@ -2926,16 +3638,23 @@ function Window:GetScale()
     return self.Scale or 1
 end
 
+-- keybind capture defaults from the interface settings
+function Window:ApplyBindOptions()
+    Keybinds.Options.ClickOutside = self.Interface.BindClickOutside
+    Keybinds.Options.Escape = self.Interface.BindEscape
+    Keybinds.Options.Mouse = self.Interface.BindMouse ~= false
+end
+
 -- build -----------------------------------------------------------------------
 
 local function iconButton(parent, icon, order, tip)
-    local hover = false
+    local hover = { Hover = false }
     local button = Util.New("ImageButton", {
         Size = UDim2.fromOffset(28, 28),
         LayoutOrder = order,
         Theme = {
             BackgroundColor3 = "ElevatedHover",
-            BackgroundTransparency = function() return hover and 0.3 or 1 end,
+            BackgroundTransparency = function() return hover.Hover and 0.3 or 1 end,
         },
         Parent = parent,
     })
@@ -2944,11 +3663,13 @@ local function iconButton(parent, icon, order, tip)
         Size = UDim2.fromOffset(14, 14),
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Theme = { ImageColor3 = function(t) return hover and t.Text or t.TextDim end },
+        Theme = { ImageColor3 = function(t) return hover.Hover and t.Text or t.TextDim end },
         Parent = button,
     })
-    button.MouseEnter:Connect(function() hover = true; Theme.Refresh(button, 0.12); Theme.Refresh(image, 0.12) end)
-    button.MouseLeave:Connect(function() hover = false; Theme.Refresh(button, 0.12); Theme.Refresh(image, 0.12) end)
+    Util.Feedback(button, hover, function()
+        Theme.Refresh(button, 0.12)
+        Theme.Refresh(image, 0.12)
+    end)
     if tip then Tooltip.Attach(button, tip) end
     return button, image
 end
@@ -3149,19 +3870,36 @@ function Window:_build()
     end))
 
     local minimize, minimizeIcon = iconButton(actions, "minus", 2, "Minimize")
+    minimize.Visible = def.Minimizable ~= false
+    local closeAction = def.CloseAction or "Hide"
     local close = iconButton(actions, "x", 3, function()
+        if closeAction ~= "Hide" then return "Close" end
         return "Hide (" .. Util.KeyLabel(self.MenuBinding and self.MenuBinding.Key) .. ")"
     end)
     self.MinimizeIcon = minimizeIcon
     minimize.MouseButton1Click:Connect(function() self:SetMinimized(not self.Minimized) end)
     close.MouseButton1Click:Connect(function()
-        self:SetVisible(false)
-        local key = self.MenuBinding and self.MenuBinding.Key
-        self.Library:Notify({
-            Title = "Menu hidden",
-            Content = key and ("Press " .. Util.KeyLabel(key) .. " to open it again.") or "Use the menu button to open it again.",
-            Duration = 4,
-        })
+        if closeAction == "Unload" then
+            self.Library:Unload()
+        elseif closeAction == "Confirm" then
+            self:Dialog({
+                Title = "Close " .. (def.Title or "menu") .. "?",
+                Icon = "power",
+                Content = "This unloads the script. Hide it with " .. Util.KeyLabel(self.MenuBinding and self.MenuBinding.Key) .. " instead.",
+                Buttons = {
+                    { Title = "Hide", Style = "Secondary", Callback = function() self:SetVisible(false) end },
+                    { Title = "Unload", Style = "Danger", Callback = function() self.Library:Unload() end },
+                },
+            })
+        else
+            self:SetVisible(false)
+            local key = self.MenuBinding and self.MenuBinding.Key
+            self.Library:Notify({
+                Title = "Menu hidden",
+                Content = key and ("Press " .. Util.KeyLabel(key) .. " to open it again.") or "Use the menu button to open it again.",
+                Duration = 4,
+            })
+        end
     end)
 
     local topDivider = Util.New("Frame", {
@@ -3186,14 +3924,13 @@ function Window:_build()
         Name = "Sidebar",
         BackgroundTransparency = 1,
         Position = UDim2.fromOffset(0, TOP + 1),
-        Size = UDim2.new(0, SIDEBAR, 1, -TOP - 1),
+        Size = UDim2.new(0, self.SidebarWidth, 1, -TOP - 1),
         Parent = root,
     })
     self.Sidebar = sidebar
-    local bottomHeight = def.User == false and 46 or 94
     local list = Util.New("ScrollingFrame", {
         Name = "Tabs",
-        Size = UDim2.new(1, 0, 1, -bottomHeight),
+        Size = UDim2.new(1, 0, 1, -46),
         ScrollBarThickness = 2,
         ScrollBarImageTransparency = 0.5,
         Theme = { ScrollBarImageColor3 = "TextMuted" },
@@ -3207,7 +3944,7 @@ function Window:_build()
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.fromScale(0, 1),
-        Size = UDim2.new(1, 0, 0, bottomHeight),
+        Size = UDim2.new(1, 0, 0, 46),
         Parent = sidebar,
     })
     Util.Padding(bottom, 6, 10, 10, 10)
@@ -3217,9 +3954,10 @@ function Window:_build()
     if def.User ~= false then
         self:_userCard(bottom)
     end
+    self:_layoutSidebar()
 
     local sideDivider = Util.New("Frame", {
-        Position = UDim2.fromOffset(SIDEBAR, TOP + 12),
+        Position = UDim2.fromOffset(self.SidebarWidth, TOP + 12),
         Size = UDim2.new(0, 1, 1, -TOP - 24),
         Theme = { BackgroundColor3 = "Divider" },
         Parent = root,
@@ -3240,8 +3978,8 @@ function Window:_build()
     self.Content = Util.New("Frame", {
         Name = "Content",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(SIDEBAR + 14, TOP + 12),
-        Size = UDim2.new(1, -SIDEBAR - 26, 1, -TOP - 12),
+        Position = UDim2.fromOffset(self.SidebarWidth + 14, TOP + 12),
+        Size = UDim2.new(1, -self.SidebarWidth - 26, 1, -TOP - 12),
         Parent = root,
     })
     self.DragLayer = Util.New("Frame", {
@@ -3277,6 +4015,7 @@ function Window:_build()
         })
     end
     self.Grip = grip
+    grip.Visible = def.Resizable ~= false
     grip.InputBegan:Connect(function(input)
         if not Util.IsPress(input) or self.Minimized then return end
         local origin = root.AbsoluteSize / self:GetScale()
@@ -3295,6 +4034,7 @@ function Window:_build()
     -- window drag by the topbar, not by its controls
     self.Maid:Give(Drag.Attach(topbar, root, {
         Enabled = function()
+            if def.Draggable == false then return false end
             local point = Util.Pointer()
             return not Util.Contains(actions, point)
         end,
@@ -3316,11 +4056,15 @@ end
 
 function Window:_userCard(parent)
     local player = Services.Players.LocalPlayer
-    local card = Util.New("Frame", {
+    local state = { Hover = false }
+    local card = Util.New("TextButton", {
         Name = "User",
         Size = UDim2.new(1, 0, 0, 42),
         LayoutOrder = 2,
-        Theme = { BackgroundColor3 = "Elevated", BackgroundTransparency = function(t) return math.min(t.ElevatedTransparency + 0.25, 0.95) end },
+        Theme = {
+            BackgroundColor3 = "Elevated",
+            BackgroundTransparency = function(t) return math.min(t.ElevatedTransparency + (state.Hover and 0.1 or 0.25), 0.95) end,
+        },
         Parent = parent,
     })
     Util.Corner(8, card)
@@ -3332,25 +4076,56 @@ function Window:_userCard(parent)
         Parent = card,
     })
     Util.Corner(UDim.new(1, 0), avatar)
+    local placeholder = Util.Icon("user", { Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(7, 7), Color = "TextMuted", Parent = avatar })
     local name = Util.Label({ TextSize = 12, Weight = Enum.FontWeight.SemiBold, Position = UDim2.fromOffset(42, 7), Size = UDim2.new(1, -48, 0, 15), TextTruncate = Enum.TextTruncate.AtEnd, Parent = card })
     local handle = Util.Label({ TextSize = 10, Color = "TextMuted", Position = UDim2.fromOffset(42, 22), Size = UDim2.new(1, -48, 0, 12), TextTruncate = Enum.TextTruncate.AtEnd, Parent = card })
-    local image
+    local thumbnail
     task.spawn(function()
         local ok, result = pcall(Services.Players.GetUserThumbnailAsync, Services.Players, player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
         if ok then
-            image = result
-            if not self.Interface.HideUser then avatar.Image = result end
+            thumbnail = result
+            if self.PaintUser then self.PaintUser() end
         end
     end)
     function self.PaintUser()
+        local user = type(self.Def.User) == "table" and self.Def.User or {}
         local hidden = self.Interface.HideUser
-        name.Text = hidden and "Hidden" or player.DisplayName
-        handle.Text = hidden and "@hidden" or ("@" .. player.Name)
-        avatar.Image = (not hidden and image) or ""
+        name.Text = hidden and "Hidden" or (user.Name or player.DisplayName)
+        handle.Text = hidden and "@hidden" or (user.Subtitle or ("@" .. player.Name))
+        local image = user.Avatar
+        if image == nil then image = thumbnail end
+        if hidden or self.Interface.HideAvatar or image == false then image = nil end
+        avatar.Image = image and Util.IconId(image) or ""
+        placeholder.Visible = avatar.Image == ""
     end
     self.PaintUser()
+    Util.Feedback(card, state)
+    card.MouseButton1Click:Connect(function()
+        local user = self.Def.User
+        if type(user) == "table" and user.Callback then Util.Safe(user.Callback) end
+    end)
     self.UserCard = card
     self.UserLabels = { name, handle }
+end
+
+-- shows or hides the profile card and sizes the tab list around it
+function Window:_layoutSidebar()
+    local showUser = self.UserCard ~= nil and self.Interface.ShowUser ~= false
+    if self.UserCard then self.UserCard.Visible = showUser end
+    local height = showUser and 94 or 46
+    self.SidebarBottom.Size = UDim2.new(1, 0, 0, height)
+    self.TabList.Size = UDim2.new(1, 0, 1, -height)
+end
+
+-- def: Name, Subtitle, Avatar (asset | false), Callback; false hides the card
+function Window:SetUser(user)
+    self.Def.User = user
+    if user == false then
+        self.Interface.ShowUser = false
+    elseif self.PaintUser then
+        self.PaintUser()
+    end
+    self:_layoutSidebar()
 end
 
 function Window:_sidebarDivider(order)
@@ -3443,7 +4218,7 @@ end
 
 function Window:SetCompact(compact, instant)
     self.Interface.Compact = compact and true or false
-    local width = compact and COMPACT or SIDEBAR
+    local width = compact and COMPACT or self.SidebarWidth
     local time = instant and 0 or 0.25
     Util.Tween(self.Sidebar, time, { Size = UDim2.new(0, width, 1, -TOP - 1) })
     Util.Tween(self.SideDivider, time, { Position = UDim2.fromOffset(width, TOP + 12) })
@@ -3473,6 +4248,9 @@ function Window:SetScale(scale, auto)
     self.Scale = scale
     self.UIScale.Scale = scale
     Layer.SetScale(scale)
+    for _, panel in self.Panels do
+        if not panel.Def.Hud then panel.UIScale.Scale = scale end
+    end
     if not auto then
         self.Interface.Scale = scale
         self:SaveState()
@@ -3496,7 +4274,7 @@ function Window:SetMinimized(minimized)
         local tween = Util.Tween(root, 0.35, { Size = self._restoreSize or root.Size })
         local function show()
             self.Sidebar.Visible, self.Content.Visible, self.SideDivider.Visible = true, true, true
-            self.TopDivider.Visible, self.Grip.Visible = true, true
+            self.TopDivider.Visible, self.Grip.Visible = true, self.Def.Resizable ~= false
             self.Actions.Search.Visible = self.Def.Search ~= false
             self.SubtitleLabel.Visible = true
         end
@@ -3525,6 +4303,9 @@ function Window:SetVisible(visible)
         if tween then tween.Completed:Once(hide) else hide() end
     end
     self.Acrylic:SetVisible(visible)
+    for _, panel in self.Panels do panel:SetVisible(panel.Visible) end
+    self.Overlays:UpdateVisibility()
+    self.Overlays:RefreshBinds()
 end
 
 function Window:Toggle()
@@ -3587,18 +4368,20 @@ function Window:Divider()
     return self:_sidebarDivider(self._order)
 end
 
-function Window:_showPage(page)
+-- target: a tab (its Frame) or the favourites / search page
+function Window:_showPage(target)
     Popup.CloseAll()
+    local frame = target.Frame
     for _, other in { self.Favorites, self.SearchPage } do
-        if other and other ~= page then other.Frame.Visible = false end
+        if other and other.Frame ~= frame then other.Frame.Visible = false end
     end
     for _, tab in self.Tabs do
-        if tab.Page ~= page then tab.Page.Frame.Visible = false end
+        if tab.Frame ~= frame then tab.Frame.Visible = false end
     end
-    if not page.Frame.Visible then
-        page.Frame.Visible = true
-        page.Frame.Position = UDim2.fromOffset(0, 10)
-        Util.Tween(page.Frame, 0.3, { Position = UDim2.new() })
+    if not frame.Visible then
+        frame.Visible = true
+        frame.Position = UDim2.fromOffset(0, 10)
+        Util.Tween(frame, 0.3, { Position = UDim2.new() })
     end
 end
 
@@ -3621,21 +4404,50 @@ function Window:_select(entry, page, id)
     end
 end
 
--- focus: optional module to scroll to
+-- tab: a tab, a sub-tab or an index; focus: optional module to scroll to
 function Window:SelectTab(tab, focus, silent)
     if type(tab) == "number" then tab = self.Tabs[tab] end
+    if type(tab) == "string" then
+        local name = tab
+        tab = nil
+        for _, candidate in self.Tabs do
+            if candidate.Title == name or candidate.Id == name then tab = candidate end
+        end
+    end
     if not tab then return end
-    self.Selected = tab
-    self:_select(tab.Entry, tab.Page, not silent and tab.Id or nil)
+    local top = tab.Parent or tab
+    if tab.Parent then tab.Parent:_showSub(tab, silent) end
+    self.Selected = top
+    self:_select(top.Entry, top, not silent and top.Id or nil)
     if focus then
         task.defer(function()
-            local view = tab.Page:Find(focus)
+            local page = top:PageOf(focus)
+            local view = page and page:Find(focus)
             if not view then return end
-            local column = tab.Page.Columns[view.Column]
+            if top.SubTabs then
+                for _, sub in top.SubTabs do
+                    if sub.Page == page then top:_showSub(sub, true) end
+                end
+            end
+            local column = page.Columns[view.Column]
             local offset = view.Card.AbsolutePosition.Y - column.AbsolutePosition.Y + column.CanvasPosition.Y - 8
             column.CanvasPosition = Vector2.new(0, math.max(offset / self:GetScale(), 0))
         end)
     end
+end
+
+-- every module of every tab and sub-tab
+function Window:Modules()
+    local list = {}
+    for _, tab in self.Tabs do
+        for _, module in tab.Modules do table.insert(list, module) end
+        for _, sub in tab.SubTabs or {} do
+            if sub ~= tab.Shared then
+                for _, module in sub.Modules do table.insert(list, module) end
+            end
+        end
+    end
+    return list
 end
 
 function Window:SelectFavorites()
@@ -3671,21 +4483,18 @@ function Window:_setFavorite(module, favorite)
 end
 
 function Window:ClearFavorites()
-    for _, tab in self.Tabs do
-        for _, module in tab.Modules do
-            if module.Favorite then self:_setFavorite(module, false) end
-        end
+    for _, module in self:Modules() do
+        if module.Favorite then self:_setFavorite(module, false) end
     end
     table.clear(self.State.Favorites)
     self:SaveState()
 end
 
 function Window:_removeModule(module)
-    for _, tab in self.Tabs do
-        local index = table.find(tab.Modules, module)
-        if index then table.remove(tab.Modules, index) end
-        tab.Page:Remove(module)
-    end
+    local owner = module.Tab
+    local index = table.find(owner.Modules, module)
+    if index then table.remove(owner.Modules, index) end
+    owner.Page:Remove(module)
     self.Favorites:Remove(module)
     self.SearchPage:Remove(module)
     local bind = table.find(self._binds, module)
@@ -3707,14 +4516,12 @@ function Window:_search(text)
     self._searching = true
     self.SearchPage:Clear()
     local found = 0
-    for _, tab in self.Tabs do
-        for _, module in tab.Modules do
-            if module.Visible and module:Matches(query) then
-                found += 1
-                local direct = (module.Title .. " " .. (module.Description or "")):lower():find(query, 1, true)
-                if not direct and #module.Children > 0 then module:SetExpanded(true) end
-                self.SearchPage:Add(module)
-            end
+    for _, module in self:Modules() do
+        if module.Visible and module:Matches(query) then
+            found += 1
+            local direct = (module.Title .. " " .. (module.Description or "")):lower():find(query, 1, true)
+            if not direct and #module.Children > 0 then module:SetExpanded(true) end
+            self.SearchPage:Add(module)
         end
     end
     self.SearchPage:SetEmpty(found == 0 and ('No results for "' .. text .. '"') or "")
@@ -3730,6 +4537,38 @@ end
 
 function Window:Notify(options)
     return self.Library:Notify(options)
+end
+
+-- floating window with elements; see Components/Panel
+function Window:Panel(def)
+    if type(def) == "string" then def = { Title = def } end
+    local panel = Panel.new(self, def or {})
+    table.insert(self.Panels, panel)
+    return panel
+end
+
+-- context menu at the mouse (or options.Anchor); items: { Title, Icon, Callback, Checked, Danger, Disabled, Hint } or "-"
+function Window:Menu(items, options)
+    options = options or {}
+    return Menu.Open({ Items = items, Title = options.Title, Anchor = options.Anchor, Point = options.Anchor == nil and Util.Pointer() or nil, Width = options.Width })
+end
+
+function Window:SetSize(size)
+    if typeof(size) == "Vector2" then size = UDim2.fromOffset(size.X, size.Y) end
+    self.Root.Size = size
+    self.Interface.Size = { math.floor(size.X.Offset), math.floor(size.Y.Offset) }
+    self:SaveState()
+end
+
+function Window:Center()
+    self.Root.Position = UDim2.fromScale(0.5, 0.5)
+    self.Interface.Position = nil
+    self:SaveState()
+end
+
+-- extra watermark text after the title: a string or a function called twice a second
+function Window:SetWatermark(text)
+    self.Overlays:SetWatermarkText(text)
 end
 
 function Window:LoadAutoload()
@@ -3776,14 +4615,24 @@ local function keyName(value)
 end
 Binding.KeyName = keyName
 
--- options: Key, Mode, Modes, Press(binding), Release(binding)
+-- options: Key, Mode, Modes, Press(binding), Release(binding),
+--          Capture = { Blacklist, AllowMouse, CanUnbind, ClickOutside, Escape } (see Keybinds.Capture)
 function Binding.new(options)
+    local capture = options.Capture or {}
     local self = setmetatable({
         Key = keyName(options.Key),
         Mode = options.Mode or "Toggle",
         Modes = options.Modes or { "Toggle", "Hold" },
         Changed = Signal.new(),
         Held = false,
+        CanUnbind = capture.CanUnbind ~= false,
+        CaptureOptions = {
+            Blacklist = capture.Blacklist,
+            AllowMouse = capture.AllowMouse,
+            CanUnbind = capture.CanUnbind,
+            ClickOutside = capture.ClickOutside,
+            Escape = capture.Escape,
+        },
     }, Binding)
     if not table.find(self.Modes, self.Mode) then self.Mode = self.Modes[1] end
     self._entry = Keybinds.Add({
@@ -3802,6 +4651,7 @@ function Binding.new(options)
 end
 
 function Binding:SetKey(key)
+    if keyName(key) == nil and not self.CanUnbind then return end
     self.Key = keyName(key)
     self.Held = false
     self.Changed:Fire()
@@ -3821,7 +4671,7 @@ function Binding:Capture()
         end
         self.Held = false
         self.Changed:Fire()
-    end)
+    end, self.CaptureOptions)
 end
 
 function Binding:SetMode(mode)
@@ -3836,7 +4686,8 @@ end
 
 function Binding:Load(data)
     if type(data) ~= "table" then return end
-    self.Key = keyName(data.Key)
+    local key = keyName(data.Key)
+    if key or self.CanUnbind then self.Key = key end
     if data.Mode and table.find(self.Modes, data.Mode) then self.Mode = data.Mode end
     self.Changed:Fire()
 end
@@ -4258,6 +5109,7 @@ return {
     ["shield"]                 = "rbxassetid://110987169760162",
     ["shield-check"]           = "rbxassetid://87354736164608",
     ["shrink"]                 = "rbxassetid://90953687918880",
+    ["shuffle"]                = "rbxassetid://132382786975101",
     ["signal"]                 = "rbxassetid://78424889355261",
     ["skull"]                  = "rbxassetid://137726256442333",
     ["sliders-horizontal"]     = "rbxassetid://85538382643347",
@@ -4303,10 +5155,22 @@ __modules["Core/Keybinds"] = function(...)
 local import = ...
 local Services = import("Core/Services")
 local Util = import("Core/Util")
+local Signal = import("Core/Signal")
 
 -- one InputBegan/InputEnded pair for every bind; keys are read through getters
 local UIS = Services.UserInputService
-local Keybinds = { Capturing = false, _binds = {}, _capture = nil }
+local Keybinds = {
+    Capturing = false,
+    Activity = Signal.new(),    -- a bound key went down or up
+    -- defaults for every capture; a binding can override each field
+    Options = {
+        ClickOutside = "Keep",  -- "Keep" | "Clear": clicking elsewhere while binding
+        Escape = "Keep",        -- "Keep" | "Clear"
+        Mouse = true,           -- mouse buttons 2 and 3 can be bound
+    },
+    _binds = {},
+    _capture = nil,
+}
 
 local MOUSE = {
     [Enum.UserInputType.MouseButton2] = "MouseButton2",
@@ -4345,27 +5209,46 @@ local function finish(result)
     Util.Safe(capture.done, result)
 end
 
--- done(name) on a key, done(false) on Backspace/Delete, done(nil) on Escape / click / timeout
-function Keybinds.Capture(done)
+local function option(options, key, global)
+    if options and options[key] ~= nil then return options[key] end
+    return Keybinds.Options[global or key]
+end
+
+-- done(name) on a key, done(false) to clear, done(nil) to keep the old key
+-- options: Blacklist = { names }, AllowMouse, CanUnbind, ClickOutside, Escape
+function Keybinds.Capture(done, options)
     if Keybinds._capture then finish(nil) end
     Keybinds.Capturing = true
+    local canUnbind = not options or options.CanUnbind ~= false
+    local blacklist = {}
+    for _, key in options and options.Blacklist or {} do
+        blacklist[typeof(key) == "EnumItem" and key.Name or tostring(key)] = true
+    end
+    local function clearOrKeep(setting)
+        finish(if setting == "Clear" and canUnbind then false else nil)
+    end
+
     local capture = { done = done }
     capture.connection = UIS.InputBegan:Connect(function(input)
         local kind = input.UserInputType
         if kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch then
-            finish(nil)
+            clearOrKeep(option(options, "ClickOutside"))
         elseif kind == Enum.UserInputType.Keyboard then
             local key = input.KeyCode
             if key == Enum.KeyCode.Escape then
-                finish(nil)
+                clearOrKeep(option(options, "Escape"))
             elseif key == Enum.KeyCode.Backspace or key == Enum.KeyCode.Delete then
-                finish(false)
-            elseif key ~= Enum.KeyCode.Unknown then
+                finish(if canUnbind then false else nil)
+            elseif key ~= Enum.KeyCode.Unknown and not blacklist[key.Name] then
                 finish(key.Name)
+            end
+        elseif MOUSE[kind] then
+            if option(options, "AllowMouse", "Mouse") ~= false and not blacklist[MOUSE[kind]] then
+                finish(MOUSE[kind])
             end
         else
             local name = Keybinds.Name(input)
-            if name then finish(name) end
+            if name and not blacklist[name] then finish(name) end
         end
     end)
     Keybinds._capture = capture
@@ -4378,21 +5261,30 @@ function Keybinds.CancelCapture()
     finish(nil)
 end
 
+local function dispatch(input, release)
+    local name = Keybinds.Name(input)
+    if not name then return end
+    local hit = false
+    for _, entry in table.clone(Keybinds._binds) do
+        if entry.Key() == name then
+            if release then
+                if entry.Release then Util.Safe(entry.Release) end
+            else
+                Util.Safe(entry.Press)
+            end
+            hit = true
+        end
+    end
+    if hit then Keybinds.Activity:Fire(name, not release) end
+end
+
 function Keybinds.Start(maid)
     maid:Give(UIS.InputBegan:Connect(function(input)
         if Keybinds.Capturing or UIS:GetFocusedTextBox() then return end
-        local name = Keybinds.Name(input)
-        if not name then return end
-        for _, entry in table.clone(Keybinds._binds) do
-            if entry.Key() == name then Util.Safe(entry.Press) end
-        end
+        dispatch(input, false)
     end))
     maid:Give(UIS.InputEnded:Connect(function(input)
-        local name = Keybinds.Name(input)
-        if not name then return end
-        for _, entry in table.clone(Keybinds._binds) do
-            if entry.Release and entry.Key() == name then Util.Safe(entry.Release) end
-        end
+        dispatch(input, true)
     end))
     maid:Give(function()
         finish(nil)
@@ -4937,6 +5829,30 @@ function Util.Icon(icon, props)
     return Util.New("ImageLabel", props)
 end
 
+-- hover state + press scale for any button; state.Hover / state.Down feed its theme functions
+function Util.Feedback(button, state, refresh)
+    state = state or {}
+    local scale = Util.New("UIScale", { Parent = button })
+    local function paint()
+        if refresh then refresh() else Theme.Refresh(button, 0.12) end
+    end
+    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
+    button.MouseLeave:Connect(function()
+        state.Hover, state.Down = false, false
+        Util.Tween(scale, 0.1, { Scale = 1 })
+        paint()
+    end)
+    button.MouseButton1Down:Connect(function()
+        state.Down = true
+        Util.Tween(scale, 0.08, { Scale = 0.95 })
+    end)
+    button.MouseButton1Up:Connect(function()
+        state.Down = false
+        Util.Tween(scale, 0.14, { Scale = 1 }, Enum.EasingStyle.Back)
+    end)
+    return state
+end
+
 function Util.Safe(fn, ...)
     if type(fn) ~= "function" then return end
     local ok, err = xpcall(fn, debug.traceback, ...)
@@ -5225,6 +6141,7 @@ function Button.new(container, def)
             Key = spec.Key or spec.Default,
             Mode = "Always",
             Modes = { "Always" },
+            Capture = spec,
             Press = function() self:Press(true) end,
         })
         self.Binding.Changed:Connect(function() self.Window:_touch(true) end)
@@ -6765,6 +7682,7 @@ function Keybind.new(container, def)
         Key = def.Default or def.Key or def.Value,
         Mode = def.Mode or "Toggle",
         Modes = def.Modes or { "Toggle", "Hold", "Always" },
+        Capture = def,
         Press = function(binding)
             if self.Locked then return end
             Util.Safe(def.Pressed)
@@ -6904,6 +7822,122 @@ function Label:Render(parent, maid)
 end
 
 return Label
+end
+
+__modules["Elements/Log"] = function(...)
+local import = ...
+local Base = import("Elements/Base")
+local Util = import("Core/Util")
+
+-- scrolling list of lines with its own height; def: Title, Height (default 140), MaxLines (default 200),
+-- Monospace, Timestamps, AutoScroll (default true); Add(text, colorToken?), Clear(), Set(lines)
+local Log = Base.Class("Log")
+
+function Log.new(container, def)
+    local self = setmetatable({}, Log)
+    Base.Init(self, container, def)
+    self.Title = def.Title or ""
+    self.Value = {}
+    self.NoSave = true
+    return self
+end
+
+function Log:Add(text, color)
+    local line = { Text = tostring(text), Color = color }
+    if self.Def.Timestamps then line.Text = os.date("%H:%M:%S") .. "  " .. line.Text end
+    table.insert(self.Value, line)
+    local max = self.Def.MaxLines or 200
+    while #self.Value > max do table.remove(self.Value, 1) end
+    self.Changed:Fire("Add", line)
+end
+
+function Log:Clear()
+    table.clear(self.Value)
+    self.Changed:Fire("Clear")
+end
+
+function Log:Set(lines)
+    table.clear(self.Value)
+    for _, text in lines do table.insert(self.Value, { Text = tostring(text) }) end
+    self.Changed:Fire("Clear")
+    for _, line in self.Value do self.Changed:Fire("Add", line) end
+end
+
+function Log:Matches(query)
+    return self.Title ~= "" and Base.Matches(self, query)
+end
+
+function Log:Render(parent, maid)
+    local frame = maid:Give(Util.New("Frame", {
+        Name = "Log",
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        Visible = self.Visible,
+        Parent = parent,
+    }))
+    Util.List(frame, 6)
+    if self.Title ~= "" then
+        Util.Label({ Text = self.Title, TextSize = 12, Weight = Enum.FontWeight.Medium, Size = UDim2.new(1, 0, 0, 16), LayoutOrder = 1, Parent = frame })
+    end
+    local box = Util.New("ScrollingFrame", {
+        Size = UDim2.new(1, 0, 0, self.Def.Height or 140),
+        BackgroundTransparency = 0,
+        ScrollBarThickness = 3,
+        LayoutOrder = 2,
+        Theme = {
+            BackgroundColor3 = "Background",
+            BackgroundTransparency = function() return 0.25 end,
+            ScrollBarImageColor3 = "TextMuted",
+        },
+        Parent = frame,
+    })
+    Util.Corner(6, box)
+    Util.Stroke(box)
+    Util.Padding(box, 6, 8, 6, 8)
+    Util.List(box, 2)
+    local font = self.Def.Monospace and Font.new("rbxasset://fonts/families/RobotoMono.json") or nil
+    local count = 0
+    local lines = {}
+    local function add(line)
+        count += 1
+        local label = Util.Label({
+            Text = line.Text,
+            TextSize = 11,
+            Color = line.Color or "TextDim",
+            TextWrapped = true,
+            RichText = true,
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            LayoutOrder = count,
+            Theme = font and { FontFace = function() return font end } or nil,
+            Parent = box,
+        })
+        table.insert(lines, label)
+        while #lines > (self.Def.MaxLines or 200) do
+            local oldest = table.remove(lines, 1)
+            if oldest then oldest:Destroy() end
+        end
+        if self.Def.AutoScroll ~= false then
+            task.defer(function()
+                if box.Parent then box.CanvasPosition = Vector2.new(0, math.huge) end
+            end)
+        end
+    end
+    for _, line in self.Value do add(line) end
+    maid:Give(self.Changed:Connect(function(what, line)
+        if what == "Clear" then
+            for _, label in lines do label:Destroy() end
+            table.clear(lines)
+        elseif what == "Add" then
+            add(line)
+        end
+    end))
+    maid:Give(self.StateChanged:Connect(function() frame.Visible = self.Visible end))
+    return frame
+end
+
+return Log
 end
 
 __modules["Elements/Paragraph"] = function(...)
@@ -7623,6 +8657,7 @@ function Toggle.new(container, def)
             Key = spec.Key or spec.Default,
             Mode = spec.Mode,
             Modes = spec.Modes or { "Toggle", "Hold" },
+            Capture = spec,
             Press = function(binding)
                 if self.Locked then return end
                 self:Set(binding.Mode == "Hold" or not self.Value)
@@ -7887,6 +8922,8 @@ function Library:Toggle()
     for _, window in self.Windows do window:Toggle() end
 end
 
+Library.Destroy = function(self) self:Unload() end
+
 function Library:OnUnload(fn)
     return self.Unloaded:Connect(fn)
 end
@@ -7908,5 +8945,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.0.0"
+Library.Version = "1.1.0"
 return Library

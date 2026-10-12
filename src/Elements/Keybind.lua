@@ -18,6 +18,7 @@ function Keybind.new(container, def)
         Key = def.Default or def.Key or def.Value,
         Mode = def.Mode or "Toggle",
         Modes = def.Modes or { "Toggle", "Hold", "Always" },
+        Capture = def,
         Press = function(binding)
             if self.Locked then return end
             Util.Safe(def.Pressed)

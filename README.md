@@ -15,73 +15,85 @@ and overlays.
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/main/examples/Example.lua"))()
 ```
 
-The showcase ([examples/Example.lua](examples/Example.lua)) has a tab for every element group and shows each
-option. It does not change anything in the game.
+The showcase ([examples/Example.lua](examples/Example.lua)) is a mock script hub (aimbot, ESP, player and
+world features as dummies) plus a tab for every element group with each option. It does not change anything
+in the game.
 
 ## Installation
 
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.0.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.1.0/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.0.0/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.1.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.0.0"`).
+`OasisUI.Version` holds the loaded version (`"1.1.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.0.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.1.0/OasisUI.lua"))()
 
-local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Blade Ball", Folder = "Oasis" })
-local Combat = Window:Tab({ Title = "Combat", Icon = "swords" })
+local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
+local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
 
-local AutoParry = Combat:Module({
-    Title = "Auto Parry",
-    Description = "Parries the ball right before it hits you.",
-    Flag = "AutoParry",
+local Aimbot = Combat:Module({
+    Title = "Aimbot",
+    Description = "Locks onto the closest target while you hold the key.",
+    Flag = "Aimbot",
+    Keybind = { Key = "MouseButton2", Mode = "Hold" },
     Callback = function(enabled) end,
 })
-AutoParry:Slider({ Title = "Accuracy", Min = 1, Max = 100, Default = 90, Suffix = "%", Flag = "Accuracy" })
+Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px", Flag = "AimFov" })
 ```
 
 ## Features
 
 - **Module cards**: title, description, key pill, switch. Settings fold out when the module is enabled
   (configurable) or with the chevron. Right-click a header for its menu, middle-click to bind a key.
-- **Two independent scrolling columns** per tab. Drag a card by its grip to reorder it or move it to the
-  other column. The layout is saved.
+  `Risky = true` marks dangerous features with a red title.
+- **Layouts**: two independent scrolling columns per tab, or one (`Columns = 1`). Tabs can be split into
+  **sub-tabs** with their own pages. Drag a card by its grip to reorder it or move it to the other column;
+  the layout is saved per page.
 - **Favorites**: the star on a card pins it to the Favorites page. Cards there are live mirrors of the
   originals, and that page can be rearranged too.
-- **Search** across every tab (Ctrl+F). Matching cards are shown with their tab name, cards that only match
-  through a child element open automatically, and matching rows are highlighted.
-- **Keybinds** in the Sapphire style. Click the pill and press a key. Backspace clears the key and Esc
-  cancels. Right-click the pill to choose a mode: Toggle, Hold or Always. Mouse buttons 2 and 3 and
-  gamepad buttons also work.
+- **Search** across every tab and sub-tab (Ctrl+F). Matching cards are shown with their tab name, cards
+  that only match through a child element open automatically, and matching rows are highlighted.
+- **Keybinds** in the Sapphire style. Click the pill and press a key, right-click it to choose Toggle, Hold
+  or Always. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while
+  binding (keep or clear), whether mouse buttons are allowed, blacklisted keys and unclearable keys are all
+  configurable, globally and per bind.
 - **Elements**: Toggle and Checkbox (both can have a key), Button (styles, confirm, key), ButtonRow,
   Slider and RangeSlider, Dropdown (single or multi, search, descriptions, icons, refresh), Input (text or
   number, validation, multiline), Keybind, ColorPicker (HSV, alpha, hex, RGB, rainbow, copy/paste),
   Segmented, Group (collapsible sub-list), Label (with a live value), Paragraph, Divider, Spacer,
-  ProgressBar, Image and Code.
+  ProgressBar, Image, Code and Log (scrolling list of lines).
   - **Slider extras**: the value is editable in the title line, `−`/`+` steppers, `From`/`To` icons, and
     min/max labels.
 - **Element states**: every element supports `Locked` (with a reason tooltip), `Visible`, and
   `DependsOn(otherElement)`.
+- **Panels**: small floating windows that hold any element. They can be dragged, collapsed, resized and
+  closed, and remember their position. HUD panels stay visible while the menu is hidden.
 - **Theme editor** in the Settings tab: presets, nine colours, window, card and field transparency,
   corner radius, font, scale, animation speed, background gradient, animated title, acrylic blur and
   compact sidebar. Themes can be saved, loaded, exported and imported.
 - **Config manager**: save, load, rename, delete, autoload, auto save, and export/import through the
   clipboard. Keybinds are stored in the config too.
-- **Overlays**: keybind list, watermark (FPS, ping, time), notifications (four types, buttons, pause on
-  hover), dialogs with an optional text input, tooltips.
+- **Keybind list overlay** with its own settings: all or active binds, sort order, grouping by mode, column
+  layout (name, key and mode in any order), mode text (full, short or hidden), key style, size, width,
+  transparency, title bar, menu key, hide while the menu is open.
+- **Other overlays**: watermark (title, custom text, FPS, ping, time, name), notifications (four types,
+  buttons with hover and press feedback, pause on hover), dialogs with an optional text input (Enter
+  submits), context menus, tooltips.
 - **Window**: drag, resize, minimize to a title pill, hide with the menu key, fit to small screens, and a
-  menu button on touch devices. The menu remembers its position, size and last tab.
+  menu button on touch devices. Profile card with custom name, subtitle and avatar, or hidden; streamer
+  mode. The menu remembers its position, size, last tab and sub-tab.
 - **Re-running a script** unloads the previous instance (same `GuiName`).
 
 ## Window
@@ -89,17 +101,22 @@ AutoParry:Slider({ Title = "Accuracy", Min = 1, Max = 100, Default = 90, Suffix 
 ```lua
 local Window = OasisUI:CreateWindow({
     Title = "Oasis",                      -- animated accent gradient unless disabled in the theme
-    Subtitle = "Blade Ball",
-    Icon = "sparkles",                    -- lucide name, rbxassetid://… or a number
+    Subtitle = "Universal",
+    Icon = "sparkles",                    -- lucide name, rbxassetid://…, rbxthumb://… or a number
     Folder = "Oasis",                     -- <Folder>/configs, <Folder>/themes, <Folder>/ui.json
     Size = UDim2.fromOffset(780, 520),
     MinSize = Vector2.new(560, 380),
+    SidebarWidth = 164,
     Theme = "Sapphire",                   -- used until the user picks something else
     ThemeOverrides = { Accent = Color3.fromRGB(255, 120, 60) },
     Tags = { "beta", { Text = "v1.2", Color = Color3.fromRGB(70, 200, 120) } },
     ToggleKey = Enum.KeyCode.RightShift,
     Search = true,
-    User = true,                          -- avatar card at the bottom of the sidebar
+    Resizable = true,
+    Draggable = true,
+    Minimizable = true,
+    CloseAction = "Hide",                 -- "Hide" | "Unload" | "Confirm" (asks before unloading)
+    User = { Name = nil, Subtitle = nil, Avatar = nil, Callback = nil },  -- false hides the profile card
     Settings = true,                      -- built-in Settings tab
     AutoLoad = true,                      -- loads the autoload config after the script finished building
     GuiName = "OasisUI",
@@ -108,70 +125,101 @@ local Window = OasisUI:CreateWindow({
 
 | Method | |
 | --- | --- |
-| `Window:Tab(def)` | new tab (`Title`, `Icon`, `Columns = 1 \| 2`, `Id`) |
+| `Window:Tab(def)` | new tab (`Title`, `Icon`, `Columns = 1 \| 2`, `Id`, `Draggable`, `Empty`) |
 | `Window:TabSection(text)` / `Window:Divider()` | caption or line in the sidebar |
-| `Window:SelectTab(tab \| index, focusModule?)` / `Window:SelectFavorites()` | |
+| `Window:SelectTab(tab \| subTab \| index \| title, focusModule?)` / `Window:SelectFavorites()` | |
+| `Window:Panel(def)` | floating panel (below) |
 | `Window:Dialog({ Title, Content, Icon, Input = { Default, Placeholder }, Buttons = { { Title, Style, Callback(text, dialog) } } })` | return `false` from a callback to keep it open; `dialog:SetError(text)` |
+| `Window:Menu(items, { Title, Anchor, Width })` | context menu; items `{ Title, Icon, Callback, Checked, Danger, Disabled, Hint }` or `"-"` |
 | `Window:Notify(options)` | same as `OasisUI:Notify` |
 | `Window:SetVisible(bool)`, `:Toggle()`, `:SetMinimized(bool)`, `:SetScale(n)`, `:SetCompact(bool)` | |
-| `Window:SetTitle(text)`, `:SetSubtitle(text)` | |
+| `Window:SetSize(UDim2 \| Vector2)`, `:Center()` | |
+| `Window:SetTitle(text)`, `:SetSubtitle(text)`, `:SetUser(def \| false)` | |
+| `Window:SetWatermark(text \| fn)` | extra watermark text after the title; a function is called twice a second |
+| `Window:Modules()` | every module of every tab and sub-tab |
 | `Window:LoadAutoload()` | call it yourself if your script yields before the UI is complete |
 | `Window.Config` | config manager (below) |
 
-## Tabs, modules, sections
+## Tabs, sub-tabs, modules, sections
 
 ```lua
-local Tab = Window:Tab({ Title = "Combat", Icon = "swords" })
+local Tab = Window:Tab({ Title = "Combat", Icon = "crosshair" })
 
-local Module = Tab:Module({
-    Title = "Auto Parry",
+local Aimbot = Tab:SubTab({ Title = "Aimbot", Icon = "target" })   -- optional; a chip bar appears above the page
+
+local Module = Aimbot:Module({
+    Title = "Aimbot",
     Description = "…",
-    Icon = "shield",                      -- optional, shown before the title
-    Flag = "AutoParry",                   -- saves enabled state + key
+    Icon = "target",                      -- optional, shown before the title
+    Flag = "Aimbot",                      -- saves enabled state + key
     Default = false,
-    Keybind = { Key = Enum.KeyCode.F, Mode = "Toggle" },  -- false hides the pill
+    Keybind = { Key = "MouseButton2", Mode = "Hold" },  -- false hides the pill
+    Risky = false,                        -- red title
     Side = "Left",                        -- first placement; the user's layout wins afterwards
     Opened = nil,                         -- force the settings open/closed initially
     Callback = function(enabled) end,
 })
 
-local Section = Tab:Section({ Title = "Info", Icon = "info", Side = "Right" })  -- no switch, open by default
+local Section = Aimbot:Section({ Title = "Info", Icon = "info", Side = "Right" })  -- no switch, open by default
 ```
+
+Sub-tabs have the same `Module` / `Section` API as tabs. Modules added straight to a tab that later gets
+sub-tabs move into a first sub-tab named `MainTitle` (default "General"). `Tab:SetVisible(bool)` hides a tab
+or sub-tab without removing it.
 
 Module methods: `Get()`, `Set(bool)`, `SetEnabled(bool)`, `ToggleEnabled()`, `OnChanged(fn)`,
 `SetExpanded(bool)`, `SetFavorite(bool)`, `SetLocked(bool)`, `SetVisible(bool)`, `SetTitle`,
-`SetDescription`, `Reset()` (module and all of its elements), `Destroy()`, `Binding` (see Keybind).
+`SetDescription`, `Reset()` (module and all of its elements), `Destroy()`, `Binding` (see Keybinds).
 
-Modules, sections and groups take elements with `Module:Toggle({...})` or `Module:AddToggle({...})`.
+Modules, sections, groups and panels take elements with `Module:Toggle({...})` or `Module:AddToggle({...})`.
 The Fluent style `Module:AddToggle("Flag", {...})` works as well.
 
 ## Elements
 
 Shared options: `Title`, `Description`, `Tooltip`, `Flag` (saved in configs, reachable through
-`OasisUI.Flags[flag]`), `Callback`, `Locked`, `LockedReason`, `Visible`.
+`OasisUI.Flags[flag]`), `Callback`, `Locked`, `LockedReason`, `Visible`, `Risky`.
 Shared methods: `Get()`, `Set(value, silent?)`, `Reset()`, `OnChanged(fn)`, `SetTitle`, `SetDescription`,
 `SetLocked(bool, reason?)`, `SetVisible(bool)`, `DependsOn(element, predicate?, "Lock" | "Hide")`, `Destroy()`.
 
 | Element | Options | Extra methods |
 | --- | --- | --- |
-| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes }` | `Binding` |
+| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }` | `Binding` |
 | `Button` | `Icon`, `Style = "Default" \| "Primary" \| "Danger" \| "Ghost"`, `Confirm = true \| text`, `Keybind` | `Press()` |
 | `Buttons` | list of `{ Title, Icon, Style, Confirm, Callback }` | `SetButtonTitle(i, text)`, `SetButtonLocked(i, bool)` |
 | `Slider` | `Min`, `Max`, `Default`, `Step` or `Rounding`, `Prefix`, `Suffix`, `Format(v)`, `Input` (editable value, default on), `Buttons` (−/+), `Icons = { From, To }`, `ShowRange`, `Live` (default on) | `SetMin`, `SetMax` |
 | `Range` | as Slider, `Default = { lo, hi }`, `MinGap`; callback gets `(lo, hi)` | |
 | `Dropdown` | `Values` (strings or `{ Title, Value, Description, Icon }`), `Default`, `Multi`, `Search` (auto above 8), `AllowNone`, `Placeholder`, `MaxVisible` | `Refresh(values, keep?)`, `Add`, `Remove`, `Toggle(value)`, `IsSelected`, `GetValues` |
 | `Input` | `Default`, `Placeholder`, `Numeric`, `Min`, `Max`, `Step`, `MaxLength`, `Finished` (default on), `Validate(text) -> ok, message`, `Icon`, `Multiline`, `Height`, `ClearOnFocus` | `Submit(text)` |
-| `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
+| `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, capture options (below), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
 | `ColorPicker` | `Default`, `Transparency` (enables alpha), `Rainbow`; callback gets `(color, transparency)` | `SetRainbow(bool)` |
 | `Segmented` | `Values`, `Default` | |
 | `Group` | `Opened`, `Icon` (holds elements itself) | `SetOpened(bool)` |
 | `Label` | `Text`, `Value` (right aligned), `Color` (theme token), `Size` | `Set(text)`, `SetValue(text)` |
 | `Paragraph` | `Title`, `Content` (rich text), `Icon` | `SetContent(text)` |
 | `ProgressBar` | `Value`, `Max`, `Suffix`, `Format(v, max)`, `Color` | `SetMax` |
+| `Log` | `Height` (default 140), `MaxLines`, `Monospace`, `Timestamps`, `AutoScroll` | `Add(text, colorToken?)`, `Clear()`, `Set(lines)` |
 | `Divider` | `Text` | |
 | `Spacer` | `Height` | |
 | `Image` | `Image`, `Height` or `AspectRatio`, `Radius`, `ScaleType` | |
 | `Code` | `Code`, `OnCopy()` | |
+
+## Panels
+
+```lua
+local Panel = Window:Panel({
+    Title = "Quick panel",
+    Icon = "zap",
+    Id = "quick",                         -- the saved position is keyed by this
+    Size = Vector2.new(260, 320),
+    Position = nil,                       -- default: next to the window
+    Closable = true,
+    Collapsible = true,
+    Resizable = false,
+    Hud = false,                          -- true: stays visible while the menu is hidden
+})
+Panel:Toggle({ Title = "Option" })
+Panel:Show(); Panel:Hide(); Panel:ToggleVisible(); Panel:SetCollapsed(true); Panel:SetTitle("…"); Panel:Destroy()
+```
 
 ## Keybinds
 
@@ -179,6 +227,18 @@ Modules, toggles, buttons and keybind elements own a `Binding`:
 `Binding.Key` (KeyCode name or `nil`), `Binding.Mode`, `Binding:SetKey(key)`, `Binding:SetMode(mode)`,
 `Binding:Capture()`, `Binding.Changed`.
 Keys are ignored while a text box has focus. Every bound key shows up in the keybind list overlay.
+
+Capture options, per bind (`Keybind = { … }` on toggles, modules and buttons, or directly on a Keybind element):
+
+| Option | |
+| --- | --- |
+| `ClickOutside = "Keep" \| "Clear"` | clicking elsewhere while binding keeps the old key or removes it |
+| `Escape = "Keep" \| "Clear"` | the same for Escape |
+| `AllowMouse = false` | right and middle mouse button cannot be bound |
+| `Blacklist = { "W", Enum.KeyCode.A, … }` | keys that are ignored while binding |
+| `CanUnbind = false` | the bind always keeps a key; Backspace and "Clear key" do nothing |
+
+The global defaults for `ClickOutside`, `Escape` and mouse buttons live in Settings → Behaviour.
 
 ## Themes
 
@@ -195,8 +255,9 @@ Style tokens: `WindowTransparency`, `SurfaceTransparency`, `ElevatedTransparency
 `Radius`, `ElementRadius`, `Font`, `AnimSpeed` (0 turns animations off), `Gradient`, `GradientRotation`,
 `AnimatedTitle`.
 
-Everything the user changes in Settings is stored in `<Folder>/ui.json`, separate from configs.
-`OasisUI.Theme.Export()` and `Theme.Import(data)` work with plain tables (colours as hex).
+Everything the user changes in Settings (theme, layout, favorites, overlays, behaviour) is stored in
+`<Folder>/ui.json`, separate from configs. `OasisUI.Theme.Export()` and `Theme.Import(data)` work with
+plain tables (colours as hex).
 
 ## Configs
 
@@ -217,9 +278,10 @@ features are added or removed.
 
 ## Library
 
-`OasisUI:Notify({ Title, Content, Type = "Info" | "Success" | "Warning" | "Error", Icon, Duration, Buttons })`,
+`OasisUI:Notify({ Title, Content, Type = "Info" | "Success" | "Warning" | "Error", Icon, Duration, Buttons = { { Title, Style, Callback, KeepOpen } } })`,
 `OasisUI:GetFlag(flag)`, `OasisUI:SetFlag(flag, value)`, `OasisUI:AddIcons({ name = "rbxassetid://…" })`,
-`OasisUI:Toggle()`, `OasisUI:Unload()`, `OasisUI:OnUnload(fn)`, `OasisUI.Flags`, `OasisUI.Version`.
+`OasisUI:SetTheme(name)`, `OasisUI:SetAccent(color)`, `OasisUI:Toggle()`, `OasisUI:Unload()` (alias `Destroy`),
+`OasisUI:OnUnload(fn)`, `OasisUI.Flags`, `OasisUI.Version`.
 
 Icons are a lucide subset (`src/Core/Icons.lua`). Add more names to `build/icon-names.txt` and run
 `node build/icons.mjs <lucide-icons.lua>`.
@@ -233,7 +295,7 @@ src/
   Themes/Presets.lua    colour palettes
   Components/           Window, Tab, Page (columns + drag), Module (card), Container (element mixin), Row,
                         Widgets (switch, checkbox, key pill), Popup, Menu, Tooltip, Dialog, Notification,
-                        Overlays (keybind list, watermark, mobile button), Acrylic, Layer (screen guis)
+                        Overlays (keybind list, watermark, mobile button), Panel, Acrylic, Layer (screen guis)
   Elements/             one file per element, Base.lua is the shared model
   Addons/Settings.lua   the built-in Settings tab
 build/

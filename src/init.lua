@@ -93,6 +93,8 @@ function Library:Toggle()
     for _, window in self.Windows do window:Toggle() end
 end
 
+Library.Destroy = function(self) self:Unload() end
+
 function Library:OnUnload(fn)
     return self.Unloaded:Connect(fn)
 end

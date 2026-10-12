@@ -28,6 +28,7 @@ function Button.new(container, def)
             Key = spec.Key or spec.Default,
             Mode = "Always",
             Modes = { "Always" },
+            Capture = spec,
             Press = function() self:Press(true) end,
         })
         self.Binding.Changed:Connect(function() self.Window:_touch(true) end)

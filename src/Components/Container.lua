@@ -31,6 +31,7 @@ local KINDS = {
     Group = { "Group" },
     Image = { "Image" },
     Code = { "Code" },
+    Log = { "Log" },
 }
 Container.Kinds = KINDS
 

@@ -111,10 +111,6 @@ return function(window)
         window:SetCompact(on)
         window:SaveState()
     end })
-    layout:Toggle({ Title = "Hide username", Default = interface.HideUser, Callback = function(on)
-        window:SetInterface("HideUser", on)
-        if window.PaintUser then window.PaintUser() end
-    end })
 
     -- keep the controls in sync when a preset or an import changes the theme
     window.Maid:Give(Theme.Changed:Connect(function()
@@ -269,14 +265,6 @@ return function(window)
     -- menu --------------------------------------------------------------------
     local menu = tab:Section({ Title = "Menu", Icon = "sliders-horizontal", Side = "Right", Id = "settings/menu" })
     menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding, Tooltip = "Opens and hides the menu." })
-    menu:Toggle({ Title = "Keybind list", Default = interface.KeybindList, Callback = function(on)
-        window.Overlays:SetKeybindList(on)
-        window:SaveState()
-    end })
-    menu:Toggle({ Title = "Watermark", Default = interface.Watermark, Callback = function(on)
-        window.Overlays:SetWatermark(on)
-        window:SaveState()
-    end })
     menu:Dropdown({
         Title = "Notifications",
         Values = { "BottomRight", "TopRight", "BottomLeft", "TopLeft" },
@@ -290,14 +278,107 @@ return function(window)
         { Title = "Test", Icon = "bell", Callback = function()
             notify("Notification", "This is how messages look.", "Info")
         end },
+        { Title = "Center", Icon = "move", Callback = function() window:Center() end },
         { Title = "Reset layout", Icon = "layout-grid", Confirm = "Confirm", Callback = function()
-            for _, other in window.Tabs do other.Page:ResetLayout() end
+            for _, other in window.Tabs do other:ResetLayout() end
             window.Favorites:ResetLayout()
         end },
     })
     menu:Label({ Text = "OasisUI", Value = "v" .. tostring(library.Version) })
     menu:Button({ Title = "Clear favorites", Icon = "star-off", Style = "Ghost", Confirm = "Click again to clear", Callback = function() window:ClearFavorites() end })
     menu:Button({ Title = "Unload", Icon = "power", Style = "Danger", Confirm = "Click again to unload", Callback = function() library:Unload() end })
+
+    -- overlays ----------------------------------------------------------------
+    local overlays = window.Overlays
+    local hud = tab:Section({ Title = "Overlays", Description = "Keybind list and watermark.", Icon = "layout-list", Side = "Right", Id = "settings/overlays" })
+    local style = interface.KeybindStyle
+    local function bindStyle(key)
+        return function(value) overlays:SetKeybindStyle(key, value) end
+    end
+    local list = hud:Toggle({ Title = "Keybind list", Default = interface.KeybindList, Callback = function(on)
+        overlays:SetKeybindList(on)
+        window:SaveState()
+    end })
+    local listOptions = hud:Group({ Title = "Keybind list options", Icon = "keyboard" })
+    listOptions:Dropdown({ Title = "Show", Values = { "All", "Active" }, Default = style.Show, Callback = bindStyle("Show") })
+    listOptions:Dropdown({ Title = "Sort by", Values = { "Added", "Name", "Key", "Mode", "Active first" }, Default = style.Sort, Callback = bindStyle("Sort") })
+    listOptions:Toggle({ Title = "Group by mode", Description = "Toggle, Hold and Always under their own caption.", Default = style.Group, Callback = bindStyle("Group") })
+    listOptions:Dropdown({ Title = "Layout", Values = overlays.Layouts, Default = style.Layout, Callback = bindStyle("Layout") })
+    listOptions:Segmented({ Title = "Mode text", Values = { "Full", "Short", "Hidden" }, Default = style.ModeText, Callback = bindStyle("ModeText") })
+    listOptions:Segmented({ Title = "Key style", Values = { "Pill", "Brackets", "Plain" }, Default = style.KeyStyle, Callback = bindStyle("KeyStyle") })
+    listOptions:Slider({ Title = "Size", Min = 50, Max = 200, Step = 5, Suffix = "%", Default = style.Scale, Callback = bindStyle("Scale") })
+    listOptions:Slider({ Title = "Width", Min = 150, Max = 400, Step = 5, Suffix = "px", Default = style.Width, Callback = bindStyle("Width") })
+    listOptions:Slider({ Title = "Transparency", Min = 0, Max = 90, Suffix = "%", Default = style.Transparency, Callback = bindStyle("Transparency") })
+    listOptions:Toggle({ Title = "Title bar", Default = style.Title, Callback = bindStyle("Title") })
+    listOptions:Toggle({ Title = "Include menu key", Default = style.MenuKey, Callback = bindStyle("MenuKey") })
+    listOptions:Toggle({ Title = "Hide while the menu is open", Default = style.HideWithMenu, Callback = bindStyle("HideWithMenu") })
+    listOptions:Button({ Title = "Reset position", Icon = "rotate-ccw", Style = "Ghost", Callback = function() overlays:ResetPosition("Keybinds") end })
+    listOptions:DependsOn(list, nil, "Hide")
+
+    local marks = interface.WatermarkStyle
+    local function markStyle(key)
+        return function(value) overlays:SetWatermarkStyle(key, value) end
+    end
+    local watermark = hud:Toggle({ Title = "Watermark", Default = interface.Watermark, Callback = function(on)
+        overlays:SetWatermark(on)
+        window:SaveState()
+    end })
+    local markOptions = hud:Group({ Title = "Watermark options", Icon = "tag" })
+    markOptions:Toggle({ Title = "Title", Default = marks.Title, Callback = markStyle("Title") })
+    markOptions:Toggle({ Title = "Frame rate", Default = marks.Fps, Callback = markStyle("Fps") })
+    markOptions:Toggle({ Title = "Ping", Default = marks.Ping, Callback = markStyle("Ping") })
+    markOptions:Toggle({ Title = "Time", Default = marks.Time, Callback = markStyle("Time") })
+    markOptions:Toggle({ Title = "Display name", Default = marks.User, Callback = markStyle("User") })
+    markOptions:Input({ Title = "Custom text", Placeholder = "Shown after the title", Default = marks.Text, MaxLength = 40, Callback = markStyle("Text") })
+    markOptions:Slider({ Title = "Size", Min = 50, Max = 200, Step = 5, Suffix = "%", Default = marks.Scale, Callback = markStyle("Scale") })
+    markOptions:Button({ Title = "Reset position", Icon = "rotate-ccw", Style = "Ghost", Callback = function() overlays:ResetPosition("Watermark") end })
+    markOptions:DependsOn(watermark, nil, "Hide")
+
+    -- behaviour ---------------------------------------------------------------
+    local behaviour = tab:Section({ Title = "Behaviour", Icon = "settings-2", Side = "Left", Id = "settings/behaviour" })
+    local binding = behaviour:Group({ Title = "Binding keys", Icon = "keyboard", Opened = true })
+    binding:Segmented({
+        Title = "Click outside while binding",
+        Values = { "Keep", "Clear" },
+        Default = interface.BindClickOutside,
+        Tooltip = "Keep leaves the old key, Clear removes it.",
+        Callback = function(value)
+            window:SetInterface("BindClickOutside", value)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Segmented({
+        Title = "Escape while binding",
+        Values = { "Keep", "Clear" },
+        Default = interface.BindEscape,
+        Callback = function(value)
+            window:SetInterface("BindEscape", value)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Toggle({
+        Title = "Allow mouse buttons",
+        Description = "Right and middle mouse button can be bound.",
+        Default = interface.BindMouse ~= false,
+        Callback = function(on)
+            window:SetInterface("BindMouse", on)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Label({ Text = "Backspace or Delete always clears a key." })
+    local profile = behaviour:Group({ Title = "Profile", Icon = "user-round", Opened = true })
+    profile:Toggle({ Title = "Profile card", Default = interface.ShowUser ~= false, Callback = function(on)
+        window:SetInterface("ShowUser", on)
+        window:_layoutSidebar()
+    end })
+    profile:Toggle({ Title = "Hide avatar", Default = interface.HideAvatar, Callback = function(on)
+        window:SetInterface("HideAvatar", on)
+        if window.PaintUser then window.PaintUser() end
+    end })
+    profile:Toggle({ Title = "Streamer mode", Description = "Hides your name in the menu.", Default = interface.HideUser, Callback = function(on)
+        window:SetInterface("HideUser", on)
+        if window.PaintUser then window.PaintUser() end
+    end })
 
     window.SettingsTab = tab
     return tab

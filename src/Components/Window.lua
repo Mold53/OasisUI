@@ -7,6 +7,7 @@ local Drag = import("Core/Drag")
 local Storage = import("Core/Storage")
 local Config = import("Core/Config")
 local Binding = import("Core/Binding")
+local Keybinds = import("Core/Keybinds")
 local Layer = import("Components/Layer")
 local Popup = import("Components/Popup")
 local Tooltip = import("Components/Tooltip")
@@ -16,13 +17,14 @@ local Page = import("Components/Page")
 local Tab = import("Components/Tab")
 local Overlays = import("Components/Overlays")
 local Acrylic = import("Components/Acrylic")
+local Panel = import("Components/Panel")
+local Menu = import("Components/Menu")
 
 local UIS = Services.UserInputService
 local Window = {}
 Window.__index = Window
 
 local TOP = 50
-local SIDEBAR = 164
 local COMPACT = 56
 local MIN_SIZE = Vector2.new(560, 380)
 
@@ -34,11 +36,18 @@ local INTERFACE = {
     KeybindList = false,
     Watermark = false,
     Acrylic = false,
-    HideUser = false,
+    ShowUser = true,         -- profile card in the sidebar
+    HideUser = false,        -- streamer mode: hide name
+    HideAvatar = false,
     NotifyPosition = "BottomRight",
+    BindClickOutside = "Keep",
+    BindEscape = "Keep",
+    BindMouse = true,
 }
 
--- def: Title, Subtitle, Icon, Folder, Size, Theme, Tags, ToggleKey, User, Settings, AutoLoad, MinSize
+-- def: Title, Subtitle, Icon, Folder, Size, MinSize, Theme, ThemeOverrides, Tags, ToggleKey, Search, Settings,
+--      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
+--      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
         Library = library,
@@ -46,13 +55,16 @@ function Window.new(library, def)
         Maid = Maid.new(),
         Tabs = {},
         Entries = {},
+        Panels = {},
         _binds = {},
         Visible = true,
         Minimized = false,
     }, Window)
     self.Folder = def.Folder or (def.Title and def.Title:gsub("[^%w_%- ]", "")) or "OasisUI"
+    self.SidebarWidth = def.SidebarWidth or 164
     self.Config = Config.new(self.Folder)
     self:_loadState()
+    self:ApplyBindOptions()
 
     if self.State.Theme then
         Theme.Import(self.State.Theme)
@@ -116,6 +128,9 @@ function Window:_loadState()
     state.Favorites = type(state.Favorites) == "table" and state.Favorites or {}
     state.Layout = type(state.Layout) == "table" and state.Layout or {}
     state.Interface = type(state.Interface) == "table" and state.Interface or {}
+    for _, key in { "SubTabs", "Panels" } do
+        if type(state.Interface[key]) ~= "table" then state.Interface[key] = {} end
+    end
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
     for key, value in defaults do
@@ -150,16 +165,23 @@ function Window:GetScale()
     return self.Scale or 1
 end
 
+-- keybind capture defaults from the interface settings
+function Window:ApplyBindOptions()
+    Keybinds.Options.ClickOutside = self.Interface.BindClickOutside
+    Keybinds.Options.Escape = self.Interface.BindEscape
+    Keybinds.Options.Mouse = self.Interface.BindMouse ~= false
+end
+
 -- build -----------------------------------------------------------------------
 
 local function iconButton(parent, icon, order, tip)
-    local hover = false
+    local hover = { Hover = false }
     local button = Util.New("ImageButton", {
         Size = UDim2.fromOffset(28, 28),
         LayoutOrder = order,
         Theme = {
             BackgroundColor3 = "ElevatedHover",
-            BackgroundTransparency = function() return hover and 0.3 or 1 end,
+            BackgroundTransparency = function() return hover.Hover and 0.3 or 1 end,
         },
         Parent = parent,
     })
@@ -168,11 +190,13 @@ local function iconButton(parent, icon, order, tip)
         Size = UDim2.fromOffset(14, 14),
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Theme = { ImageColor3 = function(t) return hover and t.Text or t.TextDim end },
+        Theme = { ImageColor3 = function(t) return hover.Hover and t.Text or t.TextDim end },
         Parent = button,
     })
-    button.MouseEnter:Connect(function() hover = true; Theme.Refresh(button, 0.12); Theme.Refresh(image, 0.12) end)
-    button.MouseLeave:Connect(function() hover = false; Theme.Refresh(button, 0.12); Theme.Refresh(image, 0.12) end)
+    Util.Feedback(button, hover, function()
+        Theme.Refresh(button, 0.12)
+        Theme.Refresh(image, 0.12)
+    end)
     if tip then Tooltip.Attach(button, tip) end
     return button, image
 end
@@ -373,19 +397,36 @@ function Window:_build()
     end))
 
     local minimize, minimizeIcon = iconButton(actions, "minus", 2, "Minimize")
+    minimize.Visible = def.Minimizable ~= false
+    local closeAction = def.CloseAction or "Hide"
     local close = iconButton(actions, "x", 3, function()
+        if closeAction ~= "Hide" then return "Close" end
         return "Hide (" .. Util.KeyLabel(self.MenuBinding and self.MenuBinding.Key) .. ")"
     end)
     self.MinimizeIcon = minimizeIcon
     minimize.MouseButton1Click:Connect(function() self:SetMinimized(not self.Minimized) end)
     close.MouseButton1Click:Connect(function()
-        self:SetVisible(false)
-        local key = self.MenuBinding and self.MenuBinding.Key
-        self.Library:Notify({
-            Title = "Menu hidden",
-            Content = key and ("Press " .. Util.KeyLabel(key) .. " to open it again.") or "Use the menu button to open it again.",
-            Duration = 4,
-        })
+        if closeAction == "Unload" then
+            self.Library:Unload()
+        elseif closeAction == "Confirm" then
+            self:Dialog({
+                Title = "Close " .. (def.Title or "menu") .. "?",
+                Icon = "power",
+                Content = "This unloads the script. Hide it with " .. Util.KeyLabel(self.MenuBinding and self.MenuBinding.Key) .. " instead.",
+                Buttons = {
+                    { Title = "Hide", Style = "Secondary", Callback = function() self:SetVisible(false) end },
+                    { Title = "Unload", Style = "Danger", Callback = function() self.Library:Unload() end },
+                },
+            })
+        else
+            self:SetVisible(false)
+            local key = self.MenuBinding and self.MenuBinding.Key
+            self.Library:Notify({
+                Title = "Menu hidden",
+                Content = key and ("Press " .. Util.KeyLabel(key) .. " to open it again.") or "Use the menu button to open it again.",
+                Duration = 4,
+            })
+        end
     end)
 
     local topDivider = Util.New("Frame", {
@@ -410,14 +451,13 @@ function Window:_build()
         Name = "Sidebar",
         BackgroundTransparency = 1,
         Position = UDim2.fromOffset(0, TOP + 1),
-        Size = UDim2.new(0, SIDEBAR, 1, -TOP - 1),
+        Size = UDim2.new(0, self.SidebarWidth, 1, -TOP - 1),
         Parent = root,
     })
     self.Sidebar = sidebar
-    local bottomHeight = def.User == false and 46 or 94
     local list = Util.New("ScrollingFrame", {
         Name = "Tabs",
-        Size = UDim2.new(1, 0, 1, -bottomHeight),
+        Size = UDim2.new(1, 0, 1, -46),
         ScrollBarThickness = 2,
         ScrollBarImageTransparency = 0.5,
         Theme = { ScrollBarImageColor3 = "TextMuted" },
@@ -431,7 +471,7 @@ function Window:_build()
         BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.fromScale(0, 1),
-        Size = UDim2.new(1, 0, 0, bottomHeight),
+        Size = UDim2.new(1, 0, 0, 46),
         Parent = sidebar,
     })
     Util.Padding(bottom, 6, 10, 10, 10)
@@ -441,9 +481,10 @@ function Window:_build()
     if def.User ~= false then
         self:_userCard(bottom)
     end
+    self:_layoutSidebar()
 
     local sideDivider = Util.New("Frame", {
-        Position = UDim2.fromOffset(SIDEBAR, TOP + 12),
+        Position = UDim2.fromOffset(self.SidebarWidth, TOP + 12),
         Size = UDim2.new(0, 1, 1, -TOP - 24),
         Theme = { BackgroundColor3 = "Divider" },
         Parent = root,
@@ -464,8 +505,8 @@ function Window:_build()
     self.Content = Util.New("Frame", {
         Name = "Content",
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(SIDEBAR + 14, TOP + 12),
-        Size = UDim2.new(1, -SIDEBAR - 26, 1, -TOP - 12),
+        Position = UDim2.fromOffset(self.SidebarWidth + 14, TOP + 12),
+        Size = UDim2.new(1, -self.SidebarWidth - 26, 1, -TOP - 12),
         Parent = root,
     })
     self.DragLayer = Util.New("Frame", {
@@ -501,6 +542,7 @@ function Window:_build()
         })
     end
     self.Grip = grip
+    grip.Visible = def.Resizable ~= false
     grip.InputBegan:Connect(function(input)
         if not Util.IsPress(input) or self.Minimized then return end
         local origin = root.AbsoluteSize / self:GetScale()
@@ -519,6 +561,7 @@ function Window:_build()
     -- window drag by the topbar, not by its controls
     self.Maid:Give(Drag.Attach(topbar, root, {
         Enabled = function()
+            if def.Draggable == false then return false end
             local point = Util.Pointer()
             return not Util.Contains(actions, point)
         end,
@@ -540,11 +583,15 @@ end
 
 function Window:_userCard(parent)
     local player = Services.Players.LocalPlayer
-    local card = Util.New("Frame", {
+    local state = { Hover = false }
+    local card = Util.New("TextButton", {
         Name = "User",
         Size = UDim2.new(1, 0, 0, 42),
         LayoutOrder = 2,
-        Theme = { BackgroundColor3 = "Elevated", BackgroundTransparency = function(t) return math.min(t.ElevatedTransparency + 0.25, 0.95) end },
+        Theme = {
+            BackgroundColor3 = "Elevated",
+            BackgroundTransparency = function(t) return math.min(t.ElevatedTransparency + (state.Hover and 0.1 or 0.25), 0.95) end,
+        },
         Parent = parent,
     })
     Util.Corner(8, card)
@@ -556,25 +603,56 @@ function Window:_userCard(parent)
         Parent = card,
     })
     Util.Corner(UDim.new(1, 0), avatar)
+    local placeholder = Util.Icon("user", { Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(7, 7), Color = "TextMuted", Parent = avatar })
     local name = Util.Label({ TextSize = 12, Weight = Enum.FontWeight.SemiBold, Position = UDim2.fromOffset(42, 7), Size = UDim2.new(1, -48, 0, 15), TextTruncate = Enum.TextTruncate.AtEnd, Parent = card })
     local handle = Util.Label({ TextSize = 10, Color = "TextMuted", Position = UDim2.fromOffset(42, 22), Size = UDim2.new(1, -48, 0, 12), TextTruncate = Enum.TextTruncate.AtEnd, Parent = card })
-    local image
+    local thumbnail
     task.spawn(function()
         local ok, result = pcall(Services.Players.GetUserThumbnailAsync, Services.Players, player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size48x48)
         if ok then
-            image = result
-            if not self.Interface.HideUser then avatar.Image = result end
+            thumbnail = result
+            if self.PaintUser then self.PaintUser() end
         end
     end)
     function self.PaintUser()
+        local user = type(self.Def.User) == "table" and self.Def.User or {}
         local hidden = self.Interface.HideUser
-        name.Text = hidden and "Hidden" or player.DisplayName
-        handle.Text = hidden and "@hidden" or ("@" .. player.Name)
-        avatar.Image = (not hidden and image) or ""
+        name.Text = hidden and "Hidden" or (user.Name or player.DisplayName)
+        handle.Text = hidden and "@hidden" or (user.Subtitle or ("@" .. player.Name))
+        local image = user.Avatar
+        if image == nil then image = thumbnail end
+        if hidden or self.Interface.HideAvatar or image == false then image = nil end
+        avatar.Image = image and Util.IconId(image) or ""
+        placeholder.Visible = avatar.Image == ""
     end
     self.PaintUser()
+    Util.Feedback(card, state)
+    card.MouseButton1Click:Connect(function()
+        local user = self.Def.User
+        if type(user) == "table" and user.Callback then Util.Safe(user.Callback) end
+    end)
     self.UserCard = card
     self.UserLabels = { name, handle }
+end
+
+-- shows or hides the profile card and sizes the tab list around it
+function Window:_layoutSidebar()
+    local showUser = self.UserCard ~= nil and self.Interface.ShowUser ~= false
+    if self.UserCard then self.UserCard.Visible = showUser end
+    local height = showUser and 94 or 46
+    self.SidebarBottom.Size = UDim2.new(1, 0, 0, height)
+    self.TabList.Size = UDim2.new(1, 0, 1, -height)
+end
+
+-- def: Name, Subtitle, Avatar (asset | false), Callback; false hides the card
+function Window:SetUser(user)
+    self.Def.User = user
+    if user == false then
+        self.Interface.ShowUser = false
+    elseif self.PaintUser then
+        self.PaintUser()
+    end
+    self:_layoutSidebar()
 end
 
 function Window:_sidebarDivider(order)
@@ -667,7 +745,7 @@ end
 
 function Window:SetCompact(compact, instant)
     self.Interface.Compact = compact and true or false
-    local width = compact and COMPACT or SIDEBAR
+    local width = compact and COMPACT or self.SidebarWidth
     local time = instant and 0 or 0.25
     Util.Tween(self.Sidebar, time, { Size = UDim2.new(0, width, 1, -TOP - 1) })
     Util.Tween(self.SideDivider, time, { Position = UDim2.fromOffset(width, TOP + 12) })
@@ -697,6 +775,9 @@ function Window:SetScale(scale, auto)
     self.Scale = scale
     self.UIScale.Scale = scale
     Layer.SetScale(scale)
+    for _, panel in self.Panels do
+        if not panel.Def.Hud then panel.UIScale.Scale = scale end
+    end
     if not auto then
         self.Interface.Scale = scale
         self:SaveState()
@@ -720,7 +801,7 @@ function Window:SetMinimized(minimized)
         local tween = Util.Tween(root, 0.35, { Size = self._restoreSize or root.Size })
         local function show()
             self.Sidebar.Visible, self.Content.Visible, self.SideDivider.Visible = true, true, true
-            self.TopDivider.Visible, self.Grip.Visible = true, true
+            self.TopDivider.Visible, self.Grip.Visible = true, self.Def.Resizable ~= false
             self.Actions.Search.Visible = self.Def.Search ~= false
             self.SubtitleLabel.Visible = true
         end
@@ -749,6 +830,9 @@ function Window:SetVisible(visible)
         if tween then tween.Completed:Once(hide) else hide() end
     end
     self.Acrylic:SetVisible(visible)
+    for _, panel in self.Panels do panel:SetVisible(panel.Visible) end
+    self.Overlays:UpdateVisibility()
+    self.Overlays:RefreshBinds()
 end
 
 function Window:Toggle()
@@ -811,18 +895,20 @@ function Window:Divider()
     return self:_sidebarDivider(self._order)
 end
 
-function Window:_showPage(page)
+-- target: a tab (its Frame) or the favourites / search page
+function Window:_showPage(target)
     Popup.CloseAll()
+    local frame = target.Frame
     for _, other in { self.Favorites, self.SearchPage } do
-        if other and other ~= page then other.Frame.Visible = false end
+        if other and other.Frame ~= frame then other.Frame.Visible = false end
     end
     for _, tab in self.Tabs do
-        if tab.Page ~= page then tab.Page.Frame.Visible = false end
+        if tab.Frame ~= frame then tab.Frame.Visible = false end
     end
-    if not page.Frame.Visible then
-        page.Frame.Visible = true
-        page.Frame.Position = UDim2.fromOffset(0, 10)
-        Util.Tween(page.Frame, 0.3, { Position = UDim2.new() })
+    if not frame.Visible then
+        frame.Visible = true
+        frame.Position = UDim2.fromOffset(0, 10)
+        Util.Tween(frame, 0.3, { Position = UDim2.new() })
     end
 end
 
@@ -845,21 +931,50 @@ function Window:_select(entry, page, id)
     end
 end
 
--- focus: optional module to scroll to
+-- tab: a tab, a sub-tab or an index; focus: optional module to scroll to
 function Window:SelectTab(tab, focus, silent)
     if type(tab) == "number" then tab = self.Tabs[tab] end
+    if type(tab) == "string" then
+        local name = tab
+        tab = nil
+        for _, candidate in self.Tabs do
+            if candidate.Title == name or candidate.Id == name then tab = candidate end
+        end
+    end
     if not tab then return end
-    self.Selected = tab
-    self:_select(tab.Entry, tab.Page, not silent and tab.Id or nil)
+    local top = tab.Parent or tab
+    if tab.Parent then tab.Parent:_showSub(tab, silent) end
+    self.Selected = top
+    self:_select(top.Entry, top, not silent and top.Id or nil)
     if focus then
         task.defer(function()
-            local view = tab.Page:Find(focus)
+            local page = top:PageOf(focus)
+            local view = page and page:Find(focus)
             if not view then return end
-            local column = tab.Page.Columns[view.Column]
+            if top.SubTabs then
+                for _, sub in top.SubTabs do
+                    if sub.Page == page then top:_showSub(sub, true) end
+                end
+            end
+            local column = page.Columns[view.Column]
             local offset = view.Card.AbsolutePosition.Y - column.AbsolutePosition.Y + column.CanvasPosition.Y - 8
             column.CanvasPosition = Vector2.new(0, math.max(offset / self:GetScale(), 0))
         end)
     end
+end
+
+-- every module of every tab and sub-tab
+function Window:Modules()
+    local list = {}
+    for _, tab in self.Tabs do
+        for _, module in tab.Modules do table.insert(list, module) end
+        for _, sub in tab.SubTabs or {} do
+            if sub ~= tab.Shared then
+                for _, module in sub.Modules do table.insert(list, module) end
+            end
+        end
+    end
+    return list
 end
 
 function Window:SelectFavorites()
@@ -895,21 +1010,18 @@ function Window:_setFavorite(module, favorite)
 end
 
 function Window:ClearFavorites()
-    for _, tab in self.Tabs do
-        for _, module in tab.Modules do
-            if module.Favorite then self:_setFavorite(module, false) end
-        end
+    for _, module in self:Modules() do
+        if module.Favorite then self:_setFavorite(module, false) end
     end
     table.clear(self.State.Favorites)
     self:SaveState()
 end
 
 function Window:_removeModule(module)
-    for _, tab in self.Tabs do
-        local index = table.find(tab.Modules, module)
-        if index then table.remove(tab.Modules, index) end
-        tab.Page:Remove(module)
-    end
+    local owner = module.Tab
+    local index = table.find(owner.Modules, module)
+    if index then table.remove(owner.Modules, index) end
+    owner.Page:Remove(module)
     self.Favorites:Remove(module)
     self.SearchPage:Remove(module)
     local bind = table.find(self._binds, module)
@@ -931,14 +1043,12 @@ function Window:_search(text)
     self._searching = true
     self.SearchPage:Clear()
     local found = 0
-    for _, tab in self.Tabs do
-        for _, module in tab.Modules do
-            if module.Visible and module:Matches(query) then
-                found += 1
-                local direct = (module.Title .. " " .. (module.Description or "")):lower():find(query, 1, true)
-                if not direct and #module.Children > 0 then module:SetExpanded(true) end
-                self.SearchPage:Add(module)
-            end
+    for _, module in self:Modules() do
+        if module.Visible and module:Matches(query) then
+            found += 1
+            local direct = (module.Title .. " " .. (module.Description or "")):lower():find(query, 1, true)
+            if not direct and #module.Children > 0 then module:SetExpanded(true) end
+            self.SearchPage:Add(module)
         end
     end
     self.SearchPage:SetEmpty(found == 0 and ('No results for "' .. text .. '"') or "")
@@ -954,6 +1064,38 @@ end
 
 function Window:Notify(options)
     return self.Library:Notify(options)
+end
+
+-- floating window with elements; see Components/Panel
+function Window:Panel(def)
+    if type(def) == "string" then def = { Title = def } end
+    local panel = Panel.new(self, def or {})
+    table.insert(self.Panels, panel)
+    return panel
+end
+
+-- context menu at the mouse (or options.Anchor); items: { Title, Icon, Callback, Checked, Danger, Disabled, Hint } or "-"
+function Window:Menu(items, options)
+    options = options or {}
+    return Menu.Open({ Items = items, Title = options.Title, Anchor = options.Anchor, Point = options.Anchor == nil and Util.Pointer() or nil, Width = options.Width })
+end
+
+function Window:SetSize(size)
+    if typeof(size) == "Vector2" then size = UDim2.fromOffset(size.X, size.Y) end
+    self.Root.Size = size
+    self.Interface.Size = { math.floor(size.X.Offset), math.floor(size.Y.Offset) }
+    self:SaveState()
+end
+
+function Window:Center()
+    self.Root.Position = UDim2.fromScale(0.5, 0.5)
+    self.Interface.Position = nil
+    self:SaveState()
+end
+
+-- extra watermark text after the title: a string or a function called twice a second
+function Window:SetWatermark(text)
+    self.Overlays:SetWatermarkText(text)
 end
 
 function Window:LoadAutoload()

@@ -159,14 +159,19 @@ function Notification.Notify(options)
         })
         Util.List(row, 6, Enum.FillDirection.Horizontal)
         for index, spec in options.Buttons do
+            local style = spec.Style or (index == 1 and "Primary" or "Secondary")
+            local state = { Hover = false }
             local button = Util.New("TextButton", {
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2.fromOffset(0, 22),
                 LayoutOrder = index,
                 ZIndex = 154,
                 Theme = {
-                    BackgroundColor3 = index == 1 and "Accent" or "ElevatedHover",
-                    TextColor3 = index == 1 and "OnAccent" or "Text",
+                    BackgroundColor3 = function(t)
+                        local base = style == "Primary" and t.Accent or (style == "Danger" and t.Danger or t.ElevatedHover)
+                        return state.Hover and base:Lerp(t.Text, 0.12) or base
+                    end,
+                    TextColor3 = (style == "Primary" or style == "Danger") and "OnAccent" or "Text",
                     FontFace = Theme.Font(Enum.FontWeight.Medium),
                 },
                 Text = spec.Title,
@@ -175,9 +180,10 @@ function Notification.Notify(options)
             })
             Util.Corner(5, button)
             Util.Padding(button, 0, 10, 0, 10)
+            Util.Feedback(button, state)
             button.MouseButton1Click:Connect(function()
                 Util.Safe(spec.Callback)
-                handle:Close()
+                if spec.KeepOpen ~= true then handle:Close() end
             end)
         end
     end

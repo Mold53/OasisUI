@@ -61,8 +61,9 @@ function Tooltip.Attach(gui, text)
         local mine = token
         task.delay(0.35, function()
             if mine ~= token then return end
-            local value = type(text) == "function" and text() or text
-            if value and value ~= "" then show(value) end
+            -- a function may return nil (no tooltip right now)
+            local value = if type(text) == "function" then text() else text
+            if type(value) == "string" and value ~= "" then show(value) end
         end)
     end)
     local leave = gui.MouseLeave:Connect(hide)

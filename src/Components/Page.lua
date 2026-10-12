@@ -10,7 +10,7 @@ Page.__index = Page
 
 local GAP = 10
 
--- options: Id, Columns (1 | 2), Draggable, Source (cards show their tab), Empty (text), Header
+-- options: Id, Columns (1 | 2), Draggable, Source (cards show their tab), Empty (text), EmptyIcon, Parent
 function Page.new(window, options)
     local self = setmetatable({
         Window = window,
@@ -27,7 +27,7 @@ function Page.new(window, options)
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
         Visible = false,
-        Parent = window.Content,
+        Parent = options.Parent or window.Content,
     })
 
     local count = math.clamp(options.Columns or 2, 1, 2)

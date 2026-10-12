@@ -131,6 +131,30 @@ function Util.Icon(icon, props)
     return Util.New("ImageLabel", props)
 end
 
+-- hover state + press scale for any button; state.Hover / state.Down feed its theme functions
+function Util.Feedback(button, state, refresh)
+    state = state or {}
+    local scale = Util.New("UIScale", { Parent = button })
+    local function paint()
+        if refresh then refresh() else Theme.Refresh(button, 0.12) end
+    end
+    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
+    button.MouseLeave:Connect(function()
+        state.Hover, state.Down = false, false
+        Util.Tween(scale, 0.1, { Scale = 1 })
+        paint()
+    end)
+    button.MouseButton1Down:Connect(function()
+        state.Down = true
+        Util.Tween(scale, 0.08, { Scale = 0.95 })
+    end)
+    button.MouseButton1Up:Connect(function()
+        state.Down = false
+        Util.Tween(scale, 0.14, { Scale = 1 }, Enum.EasingStyle.Back)
+    end)
+    return state
+end
+
 function Util.Safe(fn, ...)
     if type(fn) ~= "function" then return end
     local ok, err = xpcall(fn, debug.traceback, ...)
