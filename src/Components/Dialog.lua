@@ -130,8 +130,10 @@ function Dialog.Open(root, options)
     end
 
     local buttons = options.Buttons or { { Title = "OK", Style = "Primary" } }
+    local submit
     for index, spec in buttons do
         local style = STYLES[spec.Style or (index == #buttons and "Primary" or "Secondary")] or STYLES.Secondary
+        local state = { Hover = false }
         local button = Util.New("TextButton", {
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(72, 30),
@@ -139,12 +141,18 @@ function Dialog.Open(root, options)
             TextSize = 12,
             LayoutOrder = index,
             ZIndex = 83,
-            Theme = { BackgroundColor3 = style.Bg, TextColor3 = style.Text, FontFace = Theme.Font(Enum.FontWeight.SemiBold) },
+            Theme = {
+                BackgroundColor3 = function(t) return state.Hover and t[style.Bg]:Lerp(t.Text, 0.1) or t[style.Bg] end,
+                TextColor3 = style.Text,
+                FontFace = Theme.Font(Enum.FontWeight.SemiBold),
+            },
             Parent = row,
         })
         Util.Corner("ElementRadius", button)
         Util.Padding(button, 0, 14, 0, 14)
-        button.MouseButton1Click:Connect(function()
+        Util.Feedback(button, state)
+        local function press()
+            if closed then return end
             local keep = false
             if spec.Callback then
                 local ok, result = pcall(spec.Callback, box and box.Text or nil, handle)
@@ -152,6 +160,14 @@ function Dialog.Open(root, options)
                 keep = result == false
             end
             if not keep then handle:Close() end
+        end
+        button.MouseButton1Click:Connect(press)
+        if style == STYLES.Primary or style == STYLES.Danger then submit = press end
+    end
+    -- Enter in the text field presses the primary button
+    if box then
+        box.FocusLost:Connect(function(enter)
+            if enter and submit then submit() end
         end)
     end
 

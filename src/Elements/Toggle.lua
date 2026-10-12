@@ -19,6 +19,7 @@ function Toggle.new(container, def)
             Key = spec.Key or spec.Default,
             Mode = spec.Mode,
             Modes = spec.Modes or { "Toggle", "Hold" },
+            Capture = spec,
             Press = function(binding)
                 if self.Locked then return end
                 self:Set(binding.Mode == "Hold" or not self.Value)

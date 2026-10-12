@@ -155,6 +155,7 @@ return {
     ["shield"]                 = "rbxassetid://110987169760162",
     ["shield-check"]           = "rbxassetid://87354736164608",
     ["shrink"]                 = "rbxassetid://90953687918880",
+    ["shuffle"]                = "rbxassetid://132382786975101",
     ["signal"]                 = "rbxassetid://78424889355261",
     ["skull"]                  = "rbxassetid://137726256442333",
     ["sliders-horizontal"]     = "rbxassetid://85538382643347",

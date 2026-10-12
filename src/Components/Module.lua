@@ -10,7 +10,7 @@ local Tooltip = import("Components/Tooltip")
 
 -- sapphire style feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
---      Opened, Side ("Left" | "Right"), Callback(enabled)
+--      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
 Module.__index = Module
 Container.Apply(Module)
@@ -51,6 +51,7 @@ function Module.new(tab, def)
             Key = spec.Key or spec.Default,
             Mode = spec.Mode,
             Modes = spec.Modes or { "Toggle", "Hold" },
+            Capture = spec,
             Press = function(binding)
                 if self.Locked then return end
                 self:SetEnabled(binding.Mode == "Hold" or not self.Enabled)
@@ -202,7 +203,7 @@ function Module:_menu(view, point)
         table.insert(items, { Title = "Move to other column", Icon = "columns-2", Callback = function() view.Page:MoveToOther(view) end })
     end
     if view.Source then
-        table.insert(items, { Title = "Open in " .. self.Tab.Title, Icon = "external-link", Callback = function() window:SelectTab(self.Tab, self) end })
+        table.insert(items, { Title = "Open in " .. (self.Tab.Path or self.Tab.Title), Icon = "external-link", Callback = function() window:SelectTab(self.Tab, self) end })
     end
     table.insert(items, { Title = "Reset settings", Icon = "rotate-ccw", Danger = true, Callback = function() self:Reset() end })
     Menu.Open({ Point = point, Items = items, Title = self.Title, Width = 190 })
@@ -279,7 +280,10 @@ function Module:Render(parent, maid, view)
         Size = UDim2.fromScale(0, 1),
         TextTruncate = Enum.TextTruncate.AtEnd,
         LayoutOrder = 2,
-        Theme = { TextColor3 = function(t) return self.Locked and t.TextDim or t.Text end },
+        Theme = { TextColor3 = function(t)
+            if self.Locked then return t.TextDim end
+            return self.Def.Risky and t.Danger or t.Text
+        end },
         Parent = left,
     })
     Util.New("UISizeConstraint", { MaxSize = Vector2.new(view.Source and 140 or 190, 18), Parent = title })
@@ -293,7 +297,7 @@ function Module:Render(parent, maid, view)
         })
         Util.Corner(4, tag)
         Util.Padding(tag, 0, 6, 0, 6)
-        Util.Label({ Text = self.Tab.Title, TextSize = 10, Color = "TextMuted", Weight = Enum.FontWeight.Medium, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = tag })
+        Util.Label({ Text = self.Tab.Path or self.Tab.Title, TextSize = 10, Color = "TextMuted", Weight = Enum.FontWeight.Medium, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = tag })
     end
     local lockIcon = Util.Icon("lock", { Size = UDim2.fromOffset(12, 12), Color = "Danger", LayoutOrder = 4, Visible = self.Locked, Parent = left })
 

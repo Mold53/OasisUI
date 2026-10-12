@@ -13,14 +13,24 @@ local function keyName(value)
 end
 Binding.KeyName = keyName
 
--- options: Key, Mode, Modes, Press(binding), Release(binding)
+-- options: Key, Mode, Modes, Press(binding), Release(binding),
+--          Capture = { Blacklist, AllowMouse, CanUnbind, ClickOutside, Escape } (see Keybinds.Capture)
 function Binding.new(options)
+    local capture = options.Capture or {}
     local self = setmetatable({
         Key = keyName(options.Key),
         Mode = options.Mode or "Toggle",
         Modes = options.Modes or { "Toggle", "Hold" },
         Changed = Signal.new(),
         Held = false,
+        CanUnbind = capture.CanUnbind ~= false,
+        CaptureOptions = {
+            Blacklist = capture.Blacklist,
+            AllowMouse = capture.AllowMouse,
+            CanUnbind = capture.CanUnbind,
+            ClickOutside = capture.ClickOutside,
+            Escape = capture.Escape,
+        },
     }, Binding)
     if not table.find(self.Modes, self.Mode) then self.Mode = self.Modes[1] end
     self._entry = Keybinds.Add({
@@ -39,6 +49,7 @@ function Binding.new(options)
 end
 
 function Binding:SetKey(key)
+    if keyName(key) == nil and not self.CanUnbind then return end
     self.Key = keyName(key)
     self.Held = false
     self.Changed:Fire()
@@ -58,7 +69,7 @@ function Binding:Capture()
         end
         self.Held = false
         self.Changed:Fire()
-    end)
+    end, self.CaptureOptions)
 end
 
 function Binding:SetMode(mode)
@@ -73,7 +84,8 @@ end
 
 function Binding:Load(data)
     if type(data) ~= "table" then return end
-    self.Key = keyName(data.Key)
+    local key = keyName(data.Key)
+    if key or self.CanUnbind then self.Key = key end
     if data.Mode and table.find(self.Modes, data.Mode) then self.Mode = data.Mode end
     self.Changed:Fire()
 end

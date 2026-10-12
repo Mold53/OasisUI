@@ -154,7 +154,9 @@ function Widgets.KeyPill(parent, binding, props)
             table.insert(items, "-")
         end
         table.insert(items, { Title = "Change key", Icon = "keyboard", Callback = function() binding:Capture() end })
-        table.insert(items, { Title = "Clear key", Icon = "x", Danger = true, Disabled = binding.Key == nil, Callback = function() binding:SetKey(nil) end })
+        if binding.CanUnbind then
+            table.insert(items, { Title = "Clear key", Icon = "x", Danger = true, Disabled = binding.Key == nil, Callback = function() binding:SetKey(nil) end })
+        end
         Menu.Open({ Anchor = pill, Items = items, Width = 150, Title = "Keybind" })
     end)
 

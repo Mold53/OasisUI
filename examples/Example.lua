@@ -1,9 +1,9 @@
 --[[
-    OasisUI showcase: every element, every option, module cards, favorites, search, themes and configs.
+    OasisUI showcase: a mock script hub plus every element with every option.
 
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/main/examples/Example.lua"))()
 
-    Nothing here touches the game; callbacks only update the "Last event" line on the Overview tab.
+    All features are dummies. Nothing touches the game; callbacks only write to the event log on the Overview tab.
 ]]
 
 local SOURCE = "https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua"
@@ -22,28 +22,37 @@ local Window = OasisUI:CreateWindow({
     Tags = { "v" .. OasisUI.Version },
     Theme = "Sapphire",
     ToggleKey = Enum.KeyCode.RightShift,
+    CloseAction = "Confirm",
+    User = { Subtitle = "Showcase user" },
 })
 
--- every callback reports here; shown on the Overview tab
-local lastEvent
+-- every callback reports to the event log on the Overview tab
+local log
+local function format(value)
+    if typeof(value) == "Color3" then return "#" .. value:ToHex():upper() end
+    if type(value) == "table" then return "{ " .. table.concat(value, ", ") .. " }" end
+    if type(value) == "boolean" then return value and "on" or "off" end
+    return tostring(value)
+end
 local function event(name, ...)
+    if not log then return end
     local parts = {}
-    for index = 1, select("#", ...) do
-        local value = select(index, ...)
-        if typeof(value) == "Color3" then
-            value = "#" .. value:ToHex():upper()
-        elseif type(value) == "table" then
-            value = "{ " .. table.concat(value, ", ") .. " }"
-        end
-        table.insert(parts, tostring(value))
-    end
-    if lastEvent then lastEvent:SetValue(name .. " → " .. table.concat(parts, ", ")) end
+    for index = 1, select("#", ...) do table.insert(parts, format((select(index, ...)))) end
+    log:Add(string.format('<font color="#8C96B4">%s</font>  %s', name, table.concat(parts, ", ")))
 end
 local function report(name)
     return function(...) event(name, ...) end
 end
 local function notify(title, content, kind)
     OasisUI:Notify({ Title = title, Content = content, Type = kind or "Info", Duration = 4 })
+end
+local function playerNames()
+    local names = {}
+    for _, player in Players:GetPlayers() do
+        if player ~= LocalPlayer then table.insert(names, player.Name) end
+    end
+    if #names == 0 then names = { "Nobody else here" } end
+    return names
 end
 
 -- ── Overview ────────────────────────────────────────────────────────────────
@@ -53,21 +62,22 @@ do
     local welcome = Overview:Section({ Title = "Welcome", Icon = "sparkles", Side = "Left" })
     welcome:Paragraph({
         Title = "OasisUI " .. OasisUI.Version,
-        Content = "A UI library for big script hubs. Every tab on the left shows a part of it; the "
-            .. "<b>Elements</b> group covers each element with all of its options.",
+        Content = "A mock script hub. The <b>Hub</b> tabs look like a real script, the <b>Elements</b> tabs show "
+            .. "every element with all of its options. Nothing here changes the game.",
         Icon = "info",
     })
     welcome:Paragraph({
         Title = "Things to try",
         Content = "• Click a module header to switch it on, its settings fold out.\n"
-            .. "• Middle-click a header or click the key pill to bind a key, right-click the pill for Hold.\n"
+            .. "• Click the key pill or middle-click a header to bind a key; right-click the pill for Hold.\n"
             .. "• Right-click a header for the module menu.\n"
-            .. "• Drag the grip (top right of a card) to rearrange, also between the columns.\n"
-            .. "• Click the star to pin a module to Favorites.\n"
+            .. "• Drag a card by its grip to rearrange it, also between the columns.\n"
+            .. "• Star a module to pin it to Favorites.\n"
             .. "• Ctrl+F searches every tab.\n"
-            .. "• Settings (bottom left) has the theme editor and the config manager.",
+            .. "• Settings (bottom left): theme editor, configs, keybind list, watermark.",
     })
-    lastEvent = welcome:Label({ Text = "Last event", Value = "—" })
+    log = welcome:Log({ Title = "Event log", Height = 150, MaxLines = 100, Timestamps = true })
+    welcome:Button({ Title = "Clear log", Icon = "trash-2", Style = "Ghost", Callback = function() log:Clear() end })
 
     local stats = Overview:Section({ Title = "Live", Icon = "activity", Side = "Right" })
     live.Fps = stats:Label({ Text = "Frame rate", Value = "—" })
@@ -77,14 +87,13 @@ do
     live.Load = stats:ProgressBar({ Title = "Frame budget", Value = 0, Suffix = "%" })
 
     local quick = Overview:Section({ Title = "Quick actions", Icon = "zap", Side = "Right" })
-    local presets = OasisUI.Theme.Presets.Order
     quick:Dropdown({
         Title = "Theme preset",
-        Values = presets,
+        Values = OasisUI.Theme.Presets.Order,
         Default = OasisUI.Theme.Palette,
         Callback = function(name)
             OasisUI:SetTheme(name)
-            event("Theme preset", name)
+            event("Theme", name)
         end,
     })
     quick:Buttons({
@@ -95,142 +104,227 @@ do
         end },
         { Title = "Settings", Icon = "settings", Callback = function() Window:SelectTab(Window.SettingsTab) end },
     })
+    quick:Input({ Title = "Watermark text", Placeholder = "Shown after the title", Callback = function(text)
+        Window:SetWatermark(text)
+        event("Watermark", text)
+    end })
     quick:Code({
         Title = "Load this showcase",
         Code = 'loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/main/examples/Example.lua"))()',
     })
 end
 
--- ── Example hub ─────────────────────────────────────────────────────────────
-Window:TabSection("Example hub")
+-- ── Hub ─────────────────────────────────────────────────────────────────────
+Window:TabSection("Hub")
 
-local Combat = Window:Tab({ Title = "Combat", Icon = "swords" })
+local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
 do
-    local autoParry = Combat:Module({
-        Title = "Auto Parry",
-        Description = "Parries the ball right before it reaches you.",
-        Flag = "AutoParry",
-        Keybind = { Key = Enum.KeyCode.F },
+    local aim = Combat:SubTab({ Title = "Aimbot", Icon = "target" })
+    local aimbot = aim:Module({
+        Title = "Aimbot",
+        Description = "Locks onto the closest target while you hold the key.",
+        Flag = "Aimbot",
+        Keybind = { Key = "MouseButton2", Mode = "Hold" },
         Side = "Left",
-        Callback = report("Auto Parry"),
+        Callback = report("Aimbot"),
     })
-    autoParry:Segmented({ Title = "Parry mode", Values = { "Remote", "Keypress" }, Flag = "ParryMode", Callback = report("Parry mode") })
-    local randomize = autoParry:Toggle({ Title = "Randomize accuracy", Flag = "RandomizeAccuracy", Callback = report("Randomize accuracy") })
-    autoParry:Slider({ Title = "Accuracy", Min = 1, Max = 100, Default = 92, Suffix = "%", Buttons = true, Flag = "Accuracy", Callback = report("Accuracy") })
-        :DependsOn(randomize, function(on) return not on end)
-    autoParry:Range({ Title = "Accuracy range", Min = 1, Max = 100, Default = { 80, 95 }, MinGap = 5, Suffix = "%", Flag = "AccuracyRange", Callback = report("Accuracy range") })
-        :DependsOn(randomize)
-    autoParry:Dropdown({
-        Title = "Aim",
+    aimbot:Segmented({ Title = "Method", Values = { "Camera", "Mouse" }, Flag = "AimMethod", Callback = report("Aim method") })
+    aimbot:Dropdown({
+        Title = "Target part",
         Values = {
-            { Title = "Camera", Description = "Where you look", Icon = "eye" },
-            { Title = "Closest", Description = "Nearest player", Icon = "crosshair" },
-            { Title = "Random", Description = "A new target each parry", Icon = "sparkles" },
-            { Title = "Straight", Icon = "arrow-up" },
-            { Title = "Backwards", Icon = "arrow-down" },
+            { Title = "Head", Description = "Highest damage", Icon = "crosshair" },
+            { Title = "Torso", Description = "Easiest to hit", Icon = "shield" },
+            { Title = "Closest part", Description = "Whatever is nearest to the crosshair", Icon = "target" },
+            { Title = "Random", Description = "A new part every lock", Icon = "sparkles" },
         },
-        Flag = "Aim",
-        Callback = report("Aim"),
+        Flag = "AimPart",
+        Callback = report("Target part"),
     })
-    local detections = autoParry:Group({ Title = "Detections", Icon = "radar" })
-    detections:Checkbox({ Title = "Infinity", Default = true, Flag = "DetectInfinity", Callback = report("Infinity") })
-    detections:Checkbox({ Title = "Singularity", Default = true, Flag = "DetectSingularity", Callback = report("Singularity") })
-    detections:Checkbox({ Title = "Time Hole", Flag = "DetectTimeHole", Callback = report("Time Hole") })
-    local fury = detections:Toggle({ Title = "Slashes of Fury", Flag = "DetectFury", Callback = report("Slashes of Fury") })
-    detections:Slider({ Title = "Hit delay", Min = 20, Max = 250, Default = 50, Suffix = " ms", Flag = "FuryDelay", Callback = report("Hit delay") })
-        :DependsOn(fury, nil, "Hide")
+    aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px", Flag = "AimFov", Callback = report("FOV") })
+    aimbot:Slider({ Title = "Smoothness", Min = 0, Max = 1, Step = 0.01, Default = 0.25, Flag = "AimSmooth", Callback = report("Smoothness") })
+    aimbot:Range({ Title = "Distance", Min = 0, Max = 2000, Default = { 0, 800 }, Suffix = " st", Flag = "AimDistance", Callback = report("Distance") })
+    local checks = aimbot:Group({ Title = "Checks", Icon = "shield-check" })
+    checks:Checkbox({ Title = "Team check", Default = true, Flag = "AimTeam", Callback = report("Team check") })
+    checks:Checkbox({ Title = "Wall check", Default = true, Flag = "AimWall", Callback = report("Wall check") })
+    checks:Checkbox({ Title = "Alive only", Default = true, Flag = "AimAlive", Callback = report("Alive only") })
+    checks:Checkbox({ Title = "Ignore friends", Flag = "AimFriends", Callback = report("Ignore friends") })
+    local prediction = aimbot:Toggle({ Title = "Prediction", Flag = "AimPrediction", Callback = report("Prediction") })
+    aimbot:Slider({ Title = "Prediction strength", Min = 0, Max = 2, Step = 0.05, Default = 1, Flag = "AimPredictionStrength", Callback = report("Prediction strength") })
+        :DependsOn(prediction, nil, "Hide")
 
-    local spam = Combat:Module({
-        Title = "Auto Spam",
-        Description = "Spams parry during close clashes. Hold mode by default.",
-        Flag = "AutoSpam",
-        Keybind = { Key = Enum.KeyCode.E, Mode = "Hold" },
+    local silent = aim:Module({
+        Title = "Silent aim",
+        Description = "Redirects shots without moving the camera.",
+        Risky = true,
+        Flag = "SilentAim",
         Side = "Right",
-        Callback = report("Auto Spam"),
+        Callback = report("Silent aim"),
     })
-    spam:Slider({ Title = "Rate", Min = 1, Max = 1000, Default = 30, Suffix = " cps", Icons = { From = "minus", To = "zap" }, Flag = "SpamRate", Callback = report("Rate") })
-    spam:Slider({ Title = "Threshold", Min = 0.5, Max = 5, Step = 0.1, Default = 2, ShowRange = true, Flag = "SpamThreshold", Callback = report("Threshold") })
+    silent:Slider({ Title = "Hit chance", Min = 0, Max = 100, Default = 85, Suffix = "%", Buttons = true, Flag = "SilentChance", Callback = report("Hit chance") })
+    silent:Dropdown({ Title = "Hit part", Values = { "Head", "Torso", "Random" }, Flag = "SilentPart", Callback = report("Hit part") })
+    silent:Toggle({ Title = "Highlight target", Default = true, Flag = "SilentHighlight", Callback = report("Highlight target") })
 
-    local trigger = Combat:Module({ Title = "Triggerbot", Description = "One parry per approach with a human delay.", Flag = "Triggerbot", Side = "Right", Callback = report("Triggerbot") })
-    trigger:Range({ Title = "Reaction", Min = 0, Max = 500, Default = { 40, 120 }, Suffix = " ms", ShowRange = true, Flag = "Reaction", Callback = report("Reaction") })
+    local trigger = aim:Module({ Title = "Triggerbot", Description = "Fires when the crosshair is on a target.", Flag = "Triggerbot", Side = "Right", Callback = report("Triggerbot") })
+    trigger:Range({ Title = "Delay", Min = 0, Max = 500, Default = { 30, 90 }, Suffix = " ms", ShowRange = true, Flag = "TriggerDelay", Callback = report("Trigger delay") })
+    trigger:Toggle({ Title = "Only while aiming", Flag = "TriggerAiming", Callback = report("Only while aiming") })
 
-    Combat:Module({ Title = "Auto Ability", Description = "Uses your ability as soon as it is ready.", Flag = "AutoAbility", Side = "Left", Callback = report("Auto Ability") })
+    local priority = aim:Section({ Title = "Targeting", Icon = "list-filter", Side = "Left" })
+    priority:Dropdown({ Title = "Priority", Values = { "Closest to crosshair", "Closest distance", "Lowest health", "Highest threat" }, Flag = "AimPriority", Callback = report("Priority") })
+    priority:Dropdown({ Title = "Ignore", Multi = true, Values = { "Friends", "Teammates", "Whitelisted", "Invisible" }, Default = { "Friends" }, Flag = "AimIgnore", Callback = report("Ignore") })
+
+    local fov = Combat:SubTab({ Title = "FOV circle", Icon = "circle" })
+    local circle = fov:Module({ Title = "FOV circle", Description = "Draws the aimbot field of view.", Default = true, Flag = "FovCircle", Side = "Left", Callback = report("FOV circle") })
+    circle:ColorPicker({ Title = "Colour", Default = Color3.fromRGB(255, 255, 255), Transparency = 0.3, Flag = "FovColor", Callback = report("FOV colour") })
+    circle:Slider({ Title = "Thickness", Min = 1, Max = 6, Default = 1, Suffix = " px", Flag = "FovThickness", Callback = report("FOV thickness") })
+    circle:Slider({ Title = "Sides", Min = 3, Max = 64, Default = 48, Flag = "FovSides", Callback = report("FOV sides") })
+    circle:Toggle({ Title = "Filled", Flag = "FovFilled", Callback = report("FOV filled") })
+    circle:Toggle({ Title = "Follow the mouse", Default = true, Flag = "FovFollow", Callback = report("FOV follow") })
+    fov:Section({ Title = "About", Icon = "info", Side = "Right" }):Paragraph({ Content = "Sub-tabs keep big categories tidy. Each sub-tab has its own layout, favorites and search entries." })
+
+    local hitbox = Combat:SubTab({ Title = "Hitbox", Icon = "box" })
+    local expander = hitbox:Module({ Title = "Hitbox expander", Description = "Makes hitboxes bigger.", Risky = true, Flag = "Hitbox", Side = "Left", Callback = report("Hitbox expander") })
+    expander:Slider({ Title = "Size", Min = 1, Max = 25, Step = 0.5, Default = 6, Suffix = " st", Flag = "HitboxSize", Callback = report("Hitbox size") })
+    expander:Dropdown({ Title = "Part", Values = { "Head", "HumanoidRootPart", "Torso" }, Default = "HumanoidRootPart", Flag = "HitboxPart", Callback = report("Hitbox part") })
+    expander:ColorPicker({ Title = "Colour", Default = Color3.fromRGB(255, 80, 80), Transparency = 0.6, Flag = "HitboxColor", Callback = report("Hitbox colour") })
 end
 
 local Visuals = Window:Tab({ Title = "Visuals", Icon = "eye" })
 do
-    local esp = Visuals:Module({ Title = "ESP", Description = "Names and timers above players.", Flag = "ESP", Default = true, Side = "Left", Callback = report("ESP") })
-    esp:Toggle({ Title = "Names", Default = true, Flag = "EspNames", Callback = report("Names") })
-    esp:ColorPicker({ Title = "Name colour", Default = Color3.fromRGB(255, 255, 255), Flag = "EspNameColor", Callback = report("Name colour") })
-    esp:Toggle({ Title = "Ability timer", Default = true, Flag = "EspTimer", Callback = report("Ability timer") })
-    esp:ColorPicker({ Title = "Timer colour", Default = Color3.fromRGB(80, 180, 255), Transparency = 0.2, Flag = "EspTimerColor", Callback = report("Timer colour") })
+    local espTab = Visuals:SubTab({ Title = "ESP", Icon = "scan" })
+    local esp = espTab:Module({ Title = "ESP", Description = "Boxes, names and health above players.", Default = true, Flag = "Esp", Keybind = { Key = Enum.KeyCode.V }, Side = "Left", Callback = report("ESP") })
+    local boxes = esp:Group({ Title = "Boxes", Icon = "square", Opened = true })
+    boxes:Toggle({ Title = "Boxes", Default = true, Flag = "EspBoxes", Callback = report("Boxes") })
+    boxes:Segmented({ Title = "Style", Values = { "2D", "Corners", "3D" }, Default = "Corners", Flag = "EspBoxStyle", Callback = report("Box style") })
+    boxes:ColorPicker({ Title = "Colour", Default = Color3.fromRGB(78, 132, 255), Flag = "EspBoxColor", Callback = report("Box colour") })
+    local text = esp:Group({ Title = "Text", Icon = "type" })
+    text:Checkbox({ Title = "Names", Default = true, Flag = "EspNames", Callback = report("Names") })
+    text:Checkbox({ Title = "Distance", Default = true, Flag = "EspDistance", Callback = report("Distance") })
+    text:Checkbox({ Title = "Health", Flag = "EspHealthText", Callback = report("Health text") })
+    text:Checkbox({ Title = "Tool", Flag = "EspTool", Callback = report("Tool") })
+    esp:Toggle({ Title = "Health bar", Default = true, Flag = "EspHealthBar", Callback = report("Health bar") })
+    local tracers = esp:Toggle({ Title = "Tracers", Flag = "EspTracers", Callback = report("Tracers") })
+    esp:Dropdown({ Title = "Tracer origin", Values = { "Bottom", "Center", "Mouse" }, Flag = "EspTracerOrigin", Callback = report("Tracer origin") })
+        :DependsOn(tracers)
+    esp:Slider({ Title = "Max distance", Min = 50, Max = 5000, Step = 50, Default = 1500, Suffix = " st", Flag = "EspDistanceMax", Callback = report("Max distance") })
+    esp:Toggle({ Title = "Team colours", Flag = "EspTeamColors", Callback = report("Team colours") })
 
-    local world = Visuals:Section({ Title = "World", Description = "Client side only.", Icon = "globe", Side = "Right" })
-    world:Dropdown({
-        Title = "Hide effects",
-        Multi = true,
-        Values = { "Sparkles", "Trails", "Explosions", "Smoke", "Fire", "Beams", "Particles", "Decals", "Sky", "Fog", "Shadows", "Bloom" },
-        Default = { "Smoke", "Fog" },
-        Flag = "HideEffects",
-        Callback = report("Hide effects"),
+    local chams = espTab:Module({ Title = "Chams", Description = "Highlights players through walls.", Flag = "Chams", Side = "Right", Callback = report("Chams") })
+    chams:ColorPicker({ Title = "Fill", Default = Color3.fromRGB(146, 112, 255), Transparency = 0.5, Flag = "ChamsFill", Callback = report("Chams fill") })
+    chams:ColorPicker({ Title = "Outline", Default = Color3.fromRGB(255, 255, 255), Flag = "ChamsOutline", Callback = report("Chams outline") })
+    chams:Toggle({ Title = "Visible only", Flag = "ChamsVisible", Callback = report("Chams visible only") })
+
+    local world = Visuals:SubTab({ Title = "World", Icon = "globe" })
+    world:Module({ Title = "Fullbright", Description = "Removes darkness.", Flag = "Fullbright", Side = "Left", Callback = report("Fullbright") })
+    world:Module({ Title = "No fog", Flag = "NoFog", Side = "Left", Callback = report("No fog") })
+    local clock = world:Module({ Title = "Time changer", Description = "Sets the local time of day.", Flag = "TimeChanger", Side = "Right", Callback = report("Time changer") })
+    clock:Slider({
+        Title = "Time",
+        Min = 0, Max = 24, Step = 0.25, Default = 14,
+        Format = function(hours) return string.format("%02d:%02d", math.floor(hours) % 24, math.floor((hours % 1) * 60 + 0.5)) end,
+        Icons = { From = "moon", To = "sun" },
+        Flag = "TimeOfDay",
+        Callback = report("Time"),
     })
-    world:Slider({ Title = "Brightness", Min = 0, Max = 5, Step = 0.25, Default = 1, Icons = { From = "sun-dim", To = "sun" }, Flag = "Brightness", Callback = report("Brightness") })
+    local ambience = world:Section({ Title = "Ambience", Icon = "sun", Side = "Right" })
+    ambience:ColorPicker({ Title = "Ambient", Default = Color3.fromRGB(140, 140, 160), Flag = "Ambient", Callback = report("Ambient") })
+    ambience:Slider({ Title = "Brightness", Min = 0, Max = 5, Step = 0.25, Default = 2, Icons = { From = "sun-dim", To = "sun" }, Flag = "Brightness", Callback = report("Brightness") })
+
+    local crosshair = Visuals:SubTab({ Title = "Crosshair", Icon = "plus" })
+    local custom = crosshair:Module({ Title = "Custom crosshair", Flag = "Crosshair", Side = "Left", Callback = report("Crosshair") })
+    custom:Slider({ Title = "Size", Min = 2, Max = 40, Default = 10, Suffix = " px", Flag = "CrosshairSize", Callback = report("Crosshair size") })
+    custom:Slider({ Title = "Gap", Min = 0, Max = 20, Default = 4, Suffix = " px", Flag = "CrosshairGap", Callback = report("Crosshair gap") })
+    custom:Slider({ Title = "Thickness", Min = 1, Max = 6, Default = 2, Suffix = " px", Flag = "CrosshairThickness", Callback = report("Crosshair thickness") })
+    custom:ColorPicker({ Title = "Colour", Default = Color3.fromRGB(80, 255, 140), Flag = "CrosshairColor", Callback = report("Crosshair colour") })
+    custom:Toggle({ Title = "Centre dot", Flag = "CrosshairDot", Callback = report("Centre dot") })
+    local spin = custom:Toggle({ Title = "Spin", Flag = "CrosshairSpin", Callback = report("Spin") })
+    custom:Slider({ Title = "Spin speed", Min = 10, Max = 720, Step = 10, Default = 180, Suffix = "°/s", Flag = "CrosshairSpinSpeed", Callback = report("Spin speed") })
+        :DependsOn(spin, nil, "Hide")
 end
 
 local PlayerTab = Window:Tab({ Title = "Player", Icon = "user" })
 do
-    local spoof = PlayerTab:Module({ Title = "Spoofer", Description = "Client side stat overrides.", Flag = "Spoofer", Keybind = false, Side = "Left", Callback = report("Spoofer") })
-    spoof:Input({ Title = "Display name", Default = "OASIS", MaxLength = 20, Flag = "SpoofName", Callback = report("Display name") })
-    spoof:Input({ Title = "Coins", Numeric = true, Min = 0, Max = 1e12, Default = 9999, Tooltip = "Accepts 1.5k, 2m, 3b.", Flag = "SpoofCoins", Callback = report("Coins") })
+    local walk = PlayerTab:Module({ Title = "Walk speed", Flag = "WalkSpeed", Side = "Left", Callback = report("Walk speed") })
+    walk:Slider({ Title = "Speed", Min = 16, Max = 200, Default = 32, Buttons = true, Flag = "WalkSpeedValue", Callback = report("Speed") })
+    local jump = PlayerTab:Module({ Title = "Jump power", Flag = "JumpPower", Side = "Left", Callback = report("Jump power") })
+    jump:Slider({ Title = "Power", Min = 50, Max = 300, Default = 80, Flag = "JumpPowerValue", Callback = report("Power") })
+    local fly = PlayerTab:Module({ Title = "Fly", Description = "WASD to move, space and shift for height.", Flag = "Fly", Keybind = { Key = Enum.KeyCode.F }, Side = "Right", Callback = report("Fly") })
+    fly:Slider({ Title = "Speed", Min = 10, Max = 300, Default = 60, Flag = "FlySpeed", Callback = report("Fly speed") })
+    fly:Segmented({ Title = "Mode", Values = { "Velocity", "CFrame" }, Flag = "FlyMode", Callback = report("Fly mode") })
+    PlayerTab:Module({ Title = "Noclip", Flag = "Noclip", Keybind = { Key = Enum.KeyCode.N }, Side = "Right", Callback = report("Noclip") })
+    PlayerTab:Module({ Title = "Infinite jump", Flag = "InfiniteJump", Side = "Right", Callback = report("Infinite jump") })
 
-    local binds = PlayerTab:Section({ Title = "Hotkeys", Icon = "keyboard", Side = "Right" })
-    binds:Keybind({ Title = "Sprint", Default = Enum.KeyCode.LeftShift, Mode = "Hold", Flag = "SprintKey", Callback = report("Sprint") })
-    binds:Keybind({ Title = "Panic", Default = Enum.KeyCode.End, Mode = "Always", Flag = "PanicKey", Callback = function() notify("Panic", "Always-mode key pressed.", "Warning") end })
+    local utility = PlayerTab:Section({ Title = "Utilities", Icon = "wrench", Side = "Left" })
+    utility:Toggle({ Title = "Anti AFK", Default = true, Flag = "AntiAfk", Callback = report("Anti AFK") })
+    utility:Toggle({ Title = "Auto rejoin on kick", Flag = "AutoRejoin", Callback = report("Auto rejoin") })
+    local target = utility:Dropdown({ Title = "Player", Values = playerNames(), Search = true, Flag = "TargetPlayer", Callback = report("Player") })
+    utility:Buttons({
+        { Title = "Refresh", Icon = "refresh-cw", Callback = function() target:Refresh(playerNames()) end },
+        { Title = "Spectate", Icon = "eye", Callback = function() event("Spectate", target:Get()) end },
+        { Title = "Teleport", Icon = "navigation", Callback = function() event("Teleport", target:Get()) end },
+    })
+end
+
+local Misc = Window:Tab({ Title = "Misc", Icon = "package" })
+do
+    local server = Misc:Section({ Title = "Server", Icon = "server", Side = "Left" })
+    server:Label({ Text = "Players", Value = #Players:GetPlayers() .. " / " .. Players.MaxPlayers })
+    server:Label({ Text = "Job id", Value = (game.JobId ~= "" and game.JobId:sub(1, 8) or "studio") .. "…" })
+    server:Buttons({
+        { Title = "Rejoin", Icon = "refresh-cw", Callback = function() event("Rejoin", "requested") end },
+        { Title = "Server hop", Icon = "shuffle", Confirm = "Sure?", Callback = function() event("Server hop", "requested") end },
+    })
+    server:Button({ Title = "Copy job id", Icon = "copy", Style = "Ghost", Callback = function()
+        if setclipboard then setclipboard(game.JobId) end
+        notify("Copied", "The job id is on your clipboard.", "Success")
+    end })
+
+    local spam = Misc:Module({ Title = "Chat spam", Description = "Repeats a message.", Risky = true, Flag = "ChatSpam", Side = "Right", Callback = report("Chat spam") })
+    spam:Input({ Title = "Message", Placeholder = "gg", Default = "gg", MaxLength = 120, Flag = "ChatSpamMessage", Callback = report("Message") })
+    spam:Slider({ Title = "Interval", Min = 1, Max = 30, Default = 5, Suffix = " s", Flag = "ChatSpamInterval", Callback = report("Interval") })
+
+    local farm = Misc:Module({ Title = "Auto farm", Description = "Collects drops in the chosen area.", Flag = "AutoFarm", Side = "Right", Callback = report("Auto farm") })
+    farm:Dropdown({ Title = "Area", Values = { "Spawn", "Forest", "Desert", "Volcano" }, Flag = "FarmArea", Callback = report("Area") })
+    farm:Dropdown({ Title = "Collect", Multi = true, Values = { "Coins", "Gems", "Chests", "Eggs" }, Default = { "Coins", "Gems" }, Flag = "FarmCollect", Callback = report("Collect") })
 end
 
 -- ── Elements ────────────────────────────────────────────────────────────────
 Window:TabSection("Elements")
 
-local Toggles = Window:Tab({ Title = "Controls", Icon = "toggle-right" })
+local Controls = Window:Tab({ Title = "Controls", Icon = "toggle-right" })
 do
-    local toggles = Toggles:Section({ Title = "Toggle", Icon = "toggle-right", Side = "Left" })
+    local toggles = Controls:Section({ Title = "Toggle", Icon = "toggle-right", Side = "Left" })
     toggles:Toggle({ Title = "Switch", Callback = report("Switch") })
     toggles:Toggle({ Title = "On by default", Description = "Default = true", Default = true, Callback = report("On by default") })
     toggles:Checkbox({ Title = "Checkbox", Callback = report("Checkbox") })
-    toggles:Toggle({ Title = "Checkbox style", Description = "Style = \"Checkbox\"", Style = "Checkbox", Default = true, Callback = report("Checkbox style") })
-    toggles:Toggle({ Title = "With a key", Description = "Keybind = true, Toggle or Hold", Keybind = true, Flag = "ToggleWithKey", Callback = report("With a key") })
+    toggles:Toggle({ Title = "With a key", Description = "Keybind = true, Toggle or Hold", Keybind = true, Callback = report("With a key") })
+    toggles:Toggle({ Title = "Risky", Description = "Risky = true marks dangerous options", Risky = true, Callback = report("Risky") })
     toggles:Toggle({ Title = "With a tooltip", Tooltip = "Hover the i for help text.", Callback = report("With a tooltip") })
 
-    local buttons = Toggles:Section({ Title = "Button", Icon = "mouse-pointer-click", Side = "Right" })
+    local buttons = Controls:Section({ Title = "Button", Icon = "mouse-pointer-click", Side = "Right" })
     buttons:Button({ Title = "Default", Icon = "rocket", Callback = function() event("Button", "Default") end })
     buttons:Button({ Title = "Primary", Icon = "check", Style = "Primary", Callback = function() event("Button", "Primary") end })
     buttons:Button({ Title = "Ghost", Icon = "layers", Style = "Ghost", Callback = function() event("Button", "Ghost") end })
     buttons:Button({ Title = "Danger with confirm", Icon = "trash-2", Style = "Danger", Confirm = true, Callback = function() event("Button", "Danger confirmed") end })
-    buttons:Button({ Title = "Bound to a key", Icon = "keyboard", Keybind = true, Flag = "ButtonKey", Tooltip = "Click the pill to bind; the key presses the button.", Callback = function() event("Button", "Key press") end })
+    buttons:Button({ Title = "Bound to a key", Icon = "keyboard", Keybind = true, Tooltip = "Click the pill to bind; the key presses the button.", Callback = function() event("Button", "Key press") end })
     buttons:Divider("Rows")
-    buttons:Buttons({
-        { Title = "Left", Callback = function() event("Row", "Left") end },
-        { Title = "Right", Callback = function() event("Row", "Right") end },
-    })
     buttons:Buttons({
         { Title = "One", Icon = "hash", Callback = function() event("Row", "One") end },
         { Title = "Two", Style = "Primary", Callback = function() event("Row", "Two") end },
         { Title = "Three", Style = "Danger", Confirm = "Sure?", Callback = function() event("Row", "Three") end },
     })
 
-    local cards = Toggles:Module({
+    local card = Controls:Module({
         Title = "Module card",
-        Description = "A module: switch, key pill, star, grip. Its settings fold out below.",
+        Description = "A module: switch, key pill, star and grip. Its settings fold out below.",
         Icon = "layers",
         Keybind = { Key = Enum.KeyCode.G },
         Side = "Left",
         Callback = report("Module card"),
     })
-    cards:Label({ Text = "Settings live here. Turn \"Expand modules when enabled\" off in Settings to open them with the chevron instead." })
-    cards:Toggle({ Title = "Nested option", Callback = report("Nested option") })
-
-    Toggles:Module({ Title = "No key pill", Description = "Keybind = false", Keybind = false, Side = "Right", Callback = report("No key pill") })
-    Toggles:Section({ Title = "Section", Description = "Toggle = false: a card without switch, open by default. Useful for grouping.", Side = "Right" })
+    card:Label({ Text = "Settings live here. Turn \"Expand modules when enabled\" off in Settings to open them with the chevron instead." })
+    card:Toggle({ Title = "Nested option", Callback = report("Nested option") })
+    Controls:Module({ Title = "No key pill", Description = "Keybind = false", Keybind = false, Side = "Right", Callback = report("No key pill") })
+    Controls:Section({ Title = "Section", Description = "Toggle = false: a card without a switch, open by default.", Side = "Right" })
         :Label({ Text = "Sections hold elements like modules do." })
 end
 
@@ -243,12 +337,7 @@ do
     single:Slider({ Title = "Steppers", Description = "Buttons = true", Min = 0, Max = 20, Default = 10, Buttons = true, Callback = report("Steppers") })
     single:Slider({ Title = "End icons", Min = 0, Max = 100, Default = 70, Icons = { From = "volume-2", To = "music" }, Callback = report("End icons") })
     single:Slider({ Title = "Range labels", Min = -50, Max = 50, Default = 0, ShowRange = true, Callback = report("Range labels") })
-    single:Slider({
-        Title = "Custom format",
-        Min = 1, Max = 4, Step = 0.25, Default = 1,
-        Format = function(value) return value .. "×" end,
-        Callback = report("Custom format"),
-    })
+    single:Slider({ Title = "Custom format", Min = 1, Max = 4, Step = 0.25, Default = 1, Format = function(value) return value .. "×" end, Callback = report("Custom format") })
     single:Slider({ Title = "Read-only value", Description = "Input = false", Min = 0, Max = 100, Default = 25, Input = false, Callback = report("Read-only value") })
     single:Slider({ Title = "On release", Description = "Live = false: callback after you let go", Min = 0, Max = 100, Default = 50, Live = false, Callback = report("On release") })
 
@@ -282,24 +371,19 @@ do
     multi:Dropdown({ Title = "Search", Description = "Search turns on by itself above 8 entries", Multi = true, Values = many, Callback = report("Search") })
 
     local dynamic = Selection:Section({ Title = "Dynamic values", Icon = "refresh-cw", Side = "Left" })
-    local players = dynamic:Dropdown({ Title = "Players", Multi = true, Values = {}, Placeholder = "Press refresh", Callback = report("Players") })
+    local list = dynamic:Dropdown({ Title = "Entries", Multi = true, Values = {}, Placeholder = "Add some", Callback = report("Entries") })
     local count = 0
     dynamic:Buttons({
-        { Title = "Refresh", Icon = "refresh-cw", Callback = function()
-            local names = {}
-            for _, player in Players:GetPlayers() do table.insert(names, player.Name) end
-            players:Refresh(names)
-            event("Refresh", #names .. " players")
-        end },
         { Title = "Add", Icon = "plus", Callback = function()
             count += 1
-            players:Add("Bot " .. count)
+            list:Add("Entry " .. count)
         end },
-        { Title = "Clear", Icon = "x", Callback = function() players:Refresh({}) end },
+        { Title = "Players", Icon = "users", Callback = function() list:Refresh(playerNames()) end },
+        { Title = "Clear", Icon = "x", Callback = function() list:Refresh({}) end },
     })
 
     local segments = Selection:Section({ Title = "Segmented", Icon = "columns-2", Side = "Right" })
-    segments:Segmented({ Title = "Two", Values = { "Remote", "Keypress" }, Callback = report("Two") })
+    segments:Segmented({ Title = "Two", Values = { "On", "Off" }, Callback = report("Two") })
     segments:Segmented({ Title = "Four", Values = { "Low", "Medium", "High", "Ultra" }, Default = "High", Callback = report("Four") })
 end
 
@@ -319,9 +403,7 @@ do
         Callback = report("Validated"),
     })
     local mirror = text:Label({ Text = "Typed", Value = "" })
-    text:Input({ Title = "Live", Description = "Finished = false: fires on every keystroke", Finished = false, Callback = function(value)
-        mirror:SetValue(value)
-    end })
+    text:Input({ Title = "Live", Description = "Finished = false: fires on every keystroke", Finished = false, Callback = function(value) mirror:SetValue(value) end })
     text:Input({ Title = "Multiline", Multiline = true, Height = 64, Placeholder = "Notes…", Callback = report("Multiline") })
 
     local numbers = Inputs:Section({ Title = "Numbers", Icon = "hash", Side = "Left" })
@@ -333,6 +415,9 @@ do
     keys:Keybind({ Title = "Hold", Default = Enum.KeyCode.H, Mode = "Hold", Callback = report("Hold key") })
     keys:Keybind({ Title = "Always", Description = "Fires on every press", Default = Enum.KeyCode.J, Mode = "Always", Callback = function() event("Always key", "pressed") end })
     keys:Keybind({ Title = "Hold only", Description = "Modes = { \"Hold\" }", Mode = "Hold", Modes = { "Hold" }, Callback = report("Hold only") })
+    keys:Keybind({ Title = "No mouse, no WASD", Description = "AllowMouse = false, Blacklist = { W, A, S, D }", AllowMouse = false, Blacklist = { "W", "A", "S", "D" }, Callback = report("Restricted key") })
+    keys:Keybind({ Title = "Clears on click outside", Description = "ClickOutside = \"Clear\"", ClickOutside = "Clear", Default = Enum.KeyCode.K, Callback = report("Clearable key") })
+    keys:Keybind({ Title = "Always bound", Description = "CanUnbind = false", CanUnbind = false, Default = Enum.KeyCode.L, Callback = report("Always bound") })
     keys:Keybind({ Title = "Unbound", ChangedCallback = function(key) notify("Key changed", "Unbound → " .. tostring(key)) end })
 
     local colors = Inputs:Section({ Title = "Colour picker", Icon = "palette", Side = "Right" })
@@ -358,18 +443,18 @@ do
     layout:Spacer({ Height = 12 })
     local group = layout:Group({ Title = "Group", Icon = "folder-open", Opened = true })
     group:Toggle({ Title = "Inside a group", Callback = report("Inside a group") })
-    local inner = group:Group({ Title = "Nested group" })
-    inner:Slider({ Title = "Deep slider", Min = 0, Max = 10, Default = 3, Callback = report("Deep slider") })
+    group:Group({ Title = "Nested group" }):Slider({ Title = "Deep slider", Min = 0, Max = 10, Default = 3, Callback = report("Deep slider") })
 
     local media = Display:Section({ Title = "Media", Icon = "image", Side = "Right" })
     media:Image({ Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=420&h=420", Height = 140, ScaleType = Enum.ScaleType.Fit })
     media:Image({ Image = "rbxthumb://type=GameIcon&id=" .. game.GameId .. "&w=512&h=512", AspectRatio = "16:9" })
-    media:Code({ Title = "Code", Code = 'local Tab = Window:Tab({ Title = "Combat", Icon = "swords" })\nlocal Module = Tab:Module({ Title = "Auto Parry", Flag = "AutoParry" })\nModule:Slider({ Title = "Accuracy", Min = 1, Max = 100 })' })
+    media:Code({ Title = "Code", Code = 'local Tab = Window:Tab({ Title = "Combat", Icon = "swords" })\nlocal Module = Tab:Module({ Title = "Aimbot", Flag = "Aimbot" })\nModule:Slider({ Title = "FOV", Min = 10, Max = 500 })' })
 
-    local progress = Display:Section({ Title = "Progress", Icon = "gauge", Side = "Right" })
+    local progress = Display:Section({ Title = "Progress and logs", Icon = "gauge", Side = "Right" })
     live.Download = progress:ProgressBar({ Title = "Percent", Value = 0 })
-    live.Stamina = progress:ProgressBar({ Title = "Custom colour and suffix", Value = 70, Max = 100, Suffix = " hp", Color = "Success" })
+    progress:ProgressBar({ Title = "Custom colour and suffix", Value = 70, Max = 100, Suffix = " hp", Color = "Success" })
     live.Steps = progress:ProgressBar({ Title = "Custom format", Value = 3, Max = 8, Format = function(value, max) return string.format("%d of %d", value, max) end })
+    live.Console = progress:Log({ Title = "Console", Height = 90, Monospace = true, MaxLines = 40 })
 end
 
 local Feedback = Window:Tab({ Title = "Feedback", Icon = "bell" })
@@ -391,6 +476,7 @@ do
             Buttons = {
                 { Title = "Install", Callback = function() event("Notification", "Install") end },
                 { Title = "Later", Callback = function() event("Notification", "Later") end },
+                { Title = "Never", Style = "Danger", Callback = function() event("Notification", "Never") end },
             },
         })
     end })
@@ -412,7 +498,7 @@ do
         Window:Dialog({
             Title = "Rename",
             Icon = "pencil",
-            Content = "Returns false from the callback to keep the dialog open.",
+            Content = "Enter submits. Returning false from the callback keeps the dialog open.",
             Input = { Default = LocalPlayer.DisplayName, Placeholder = "Name" },
             Buttons = {
                 { Title = "Cancel", Style = "Secondary" },
@@ -445,15 +531,46 @@ do
         :Toggle({ Title = "Option behind the lock" })
 end
 
+local Layouts = Window:Tab({ Title = "Layouts", Icon = "columns-2", Columns = 1 })
+do
+    local about = Layouts:Section({ Title = "One column", Icon = "layout-list" })
+    about:Paragraph({ Content = "This tab uses Columns = 1: a single scrolling column. Combat and Visuals use sub-tabs; every other tab uses two columns." })
+
+    local windows = Layouts:Section({ Title = "Panels and menus", Icon = "layers" })
+    local panel
+    windows:Button({ Title = "Open a floating panel", Icon = "layers", Style = "Primary", Callback = function()
+        if panel then
+            panel:ToggleVisible()
+            return
+        end
+        panel = Window:Panel({ Title = "Quick panel", Icon = "zap", Id = "showcase-panel", Size = Vector2.new(250, 260), Resizable = true })
+        panel:Label({ Text = "Panels hold any element, can be dragged, collapsed, resized and closed. Hud = true keeps one visible while the menu is hidden." })
+        panel:Toggle({ Title = "Panel toggle", Callback = report("Panel toggle") })
+        panel:Slider({ Title = "Panel slider", Min = 0, Max = 10, Default = 5, Callback = report("Panel slider") })
+        panel:Button({ Title = "Close", Style = "Ghost", Callback = function() panel:Hide() end })
+    end })
+    windows:Button({ Title = "Open a context menu", Icon = "ellipsis", Callback = function()
+        Window:Menu({
+            { Title = "Copy", Icon = "copy", Hint = "Ctrl C", Callback = function() event("Menu", "Copy") end },
+            { Title = "Pin", Icon = "pin", Checked = true, Callback = function() event("Menu", "Pin") end },
+            "-",
+            { Title = "Delete", Icon = "trash-2", Danger = true, Callback = function() event("Menu", "Delete") end },
+        }, { Title = "Actions" })
+    end })
+    windows:Buttons({
+        { Title = "Center window", Icon = "move", Callback = function() Window:Center() end },
+        { Title = "Minimize", Icon = "minus", Callback = function() Window:SetMinimized(true) end },
+    })
+end
+
 -- ── live values ─────────────────────────────────────────────────────────────
 local started = os.clock()
-local frames, elapsed, download = 0, 0, 0
+local frames, elapsed, download, ticks = 0, 0, 0, 0
 local connection = RunService.RenderStepped:Connect(function(dt)
     frames += 1
     elapsed += dt
     if elapsed < 0.5 then return end
-    local fps = frames / elapsed
-    live.Fps:SetValue(math.floor(fps + 0.5) .. " fps")
+    live.Fps:SetValue(math.floor(frames / elapsed + 0.5) .. " fps")
     live.Ping:SetValue(math.floor(LocalPlayer:GetNetworkPing() * 1000 + 0.5) .. " ms")
     live.Memory:SetValue(math.floor(Stats:GetTotalMemoryUsageMb()) .. " MB")
     live.Session:SetValue(math.floor(os.clock() - started) .. "s")
@@ -461,10 +578,13 @@ local connection = RunService.RenderStepped:Connect(function(dt)
     download = (download + 7) % 107
     live.Download:Set(math.min(download, 100))
     live.Steps:Set((live.Steps:Get() % 8) + 1)
+    ticks += 1
+    if ticks % 4 == 0 then live.Console:Add(string.format("[%05.1f] heartbeat ok", os.clock() - started)) end
     frames, elapsed = 0, 0
 end)
 OasisUI:OnUnload(function() connection:Disconnect() end)
 
+event("Showcase", "loaded")
 task.delay(1, function()
     notify("OasisUI " .. OasisUI.Version, "RightShift hides the menu. Settings are at the bottom left.", "Success")
 end)
