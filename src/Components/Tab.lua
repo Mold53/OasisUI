@@ -95,10 +95,9 @@ function Tab:_enableSubTabs()
         Name = "Bar",
         Size = UDim2.new(1, 0, 0, BAR),
         ScrollingDirection = Enum.ScrollingDirection.X,
-        AutomaticCanvasSize = Enum.AutomaticSize.X,
         Parent = holder,
     })
-    Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+    Util.AutoCanvas(bar, Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center), true)
     self.SubArea = Util.New("Frame", {
         Name = "Area",
         BackgroundTransparency = 1,

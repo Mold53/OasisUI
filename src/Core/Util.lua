@@ -131,6 +131,41 @@ function Util.Icon(icon, props)
     return Util.New("ImageLabel", props)
 end
 
+-- product of every UIScale above gui (absolute sizes are scaled, offsets are not)
+function Util.ScaleOf(gui)
+    local scale = 1
+    local node = gui
+    while node and not node:IsA("LayerCollector") do
+        local uiScale = node:FindFirstChildOfClass("UIScale")
+        if uiScale then scale *= uiScale.Scale end
+        node = node.Parent
+    end
+    return scale
+end
+
+-- sizes a ScrollingFrame's canvas from its list layout; AutomaticCanvasSize misreads UIScale and
+-- frames that were filled while hidden
+function Util.AutoCanvas(frame, layout, horizontal)
+    frame.AutomaticCanvasSize = Enum.AutomaticSize.None
+    local padding = frame:FindFirstChildOfClass("UIPadding")
+    local function update()
+        if not frame.Parent then return end
+        local scale = Util.ScaleOf(frame)
+        local content = layout.AbsoluteContentSize / math.max(scale, 0.01)
+        if horizontal then
+            local extra = padding and (padding.PaddingLeft.Offset + padding.PaddingRight.Offset) or 0
+            frame.CanvasSize = UDim2.fromOffset(math.ceil(content.X + extra), 0)
+        else
+            local extra = padding and (padding.PaddingTop.Offset + padding.PaddingBottom.Offset) or 0
+            frame.CanvasSize = UDim2.fromOffset(0, math.ceil(content.Y + extra))
+        end
+    end
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(update)
+    frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(update)
+    update()
+    return update
+end
+
 -- hover state + press scale for any button; state.Hover / state.Down feed its theme functions
 function Util.Feedback(button, state, refresh)
     state = state or {}

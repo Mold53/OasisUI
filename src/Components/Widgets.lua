@@ -75,7 +75,7 @@ function Widgets.Checkbox(parent, props)
     return box, paint
 end
 
--- sapphire style key pill for a Binding; click binds, right click opens modes
+-- key pill for a Binding; click binds, right click opens modes
 function Widgets.KeyPill(parent, binding, props)
     props = props or {}
     local hover = false

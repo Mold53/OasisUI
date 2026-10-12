@@ -8,7 +8,7 @@ local Widgets = import("Components/Widgets")
 local Menu = import("Components/Menu")
 local Tooltip = import("Components/Tooltip")
 
--- sapphire style feature card: switch + key in the header, settings fold out below
+-- feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
 --      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
