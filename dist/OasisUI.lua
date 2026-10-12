@@ -1,4 +1,4 @@
--- OasisUI v1.2.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.2.1 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -115,11 +115,20 @@ return function(window)
         Default = interface.Blur,
         Callback = function(mode)
             window:SetBlur(mode)
-            if mode == "Window" and not window.Acrylic:Supported() then
-                notify("Window blur needs graphics quality 8+", "Raise it in the Roblox settings or use Screen blur.", "Warning")
+            if window.Acrylic:Problem(mode) then
+                notify("Window blur can't render here", "See the note under Background blur.", "Warning")
             end
         end,
     })
+    local blurHint = effects:Label({ Text = "", Color = "Warning" })
+    local function refreshBlurHint()
+        local problem = window.Acrylic:Problem(blur:Get())
+        blurHint:Set(problem or "")
+        blurHint:SetVisible(problem ~= nil)
+    end
+    blur.Changed:Connect(refreshBlurHint)
+    window.Maid:Give(UserSettings().GameSettings:GetPropertyChangedSignal("SavedQualityLevel"):Connect(refreshBlurHint))
+    refreshBlurHint()
     effects:Slider({
         Title = "Blur strength",
         Min = 2, Max = 24, Default = interface.BlurStrength,
@@ -418,7 +427,9 @@ local Theme = import("Core/Theme")
 -- background blur, off by default
 --   "Screen": a BlurEffect in Lighting while the menu is open; works on every graphics level
 --   "Window": a glass plate in front of the camera plus a DepthOfFieldEffect, blurring only what is behind
---             the window; Roblox draws glass from graphics quality 8 up
+--             the window; Roblox draws glass from graphics quality 8 up (a bootstrapper quality FFlag
+--             overrides the menu) and only one depth of field effect counts, so the game's own ones are
+--             switched off while it runs and restored afterwards
 local Acrylic = {}
 Acrylic.__index = Acrylic
 Acrylic.Modes = { "Off", "Screen", "Window" }
@@ -434,10 +445,31 @@ local function qualityLevel()
     return ok and level or 0
 end
 
--- 0 = automatic, the engine decides; anything from 8 up renders glass
-function Acrylic:Supported()
+-- bootstrapper FFlag that pins the real quality (1-21 scale) whatever the menu says
+local function qualityOverride()
+    local ok, level = pcall(game.GetFastInt, game, "DebugFRMQualityLevelOverride")
+    return ok and tonumber(level) or 0
+end
+
+-- why a mode cannot render on this client, nil when it can
+function Acrylic:Problem(mode)
+    if (mode or self.Mode) ~= "Window" then return nil end
+    -- glass and depth of field render from menu level 8, which is 16 on the engine's 1-21 scale
+    local override = qualityOverride()
+    if override > 0 then
+        if override >= 16 then return nil end
+        return ("A client FFlag (DFIntDebugFRMQualityLevelOverride = %d) caps graphics quality below what Window blur needs. Use Screen blur or remove the flag."):format(override)
+    end
+    -- 0 = automatic, the engine picks the level
     local level = qualityLevel()
-    return level == 0 or level >= 8
+    if level > 0 and level < 8 then
+        return "Window blur needs graphics quality 8 or higher (Roblox menu → Settings → Graphics)."
+    end
+    return nil
+end
+
+function Acrylic:Supported()
+    return self:Problem("Window") == nil
 end
 
 function Acrylic:_screen()
@@ -461,7 +493,29 @@ end
 function Acrylic:_window()
     local camera = workspace.CurrentCamera
     local connections = {}
-    local depth = Instance.new("DepthOfFieldEffect")
+    local depth
+
+    -- other depth of field effects win over ours; keep them off and remember their state
+    local muted = {}
+    local function mute(effect)
+        if effect == depth or not effect:IsA("DepthOfFieldEffect") or muted[effect] ~= nil then return end
+        muted[effect] = effect.Enabled
+        effect.Enabled = false
+        table.insert(connections, effect:GetPropertyChangedSignal("Enabled"):Connect(function()
+            if effect.Enabled and self.Mode == "Window" and self.Shown then
+                muted[effect] = true
+                effect.Enabled = false
+            end
+        end))
+    end
+    local function restore()
+        for effect, enabled in muted do
+            if effect.Parent then effect.Enabled = enabled end
+        end
+        table.clear(muted)
+    end
+
+    depth = Instance.new("DepthOfFieldEffect")
     depth.Name = "OasisAcrylic"
     depth.FarIntensity = 0
     depth.FocusDistance = 0.05
@@ -482,7 +536,8 @@ function Acrylic:_window()
     mesh.Parent = part
     part.Parent = camera
 
-    local function update()
+    -- keeps the plate over the window; runs on every camera move
+    local function place()
         local frame = self.Frame
         local inset = 6
         -- AbsolutePosition sits below the topbar inset, viewport rays start above it
@@ -494,22 +549,43 @@ function Acrylic:_window()
         local cf = camera.CFrame
         part.CFrame = CFrame.fromMatrix((topLeft + bottomRight) / 2, cf.XVector, cf.YVector, cf.ZVector)
         mesh.Scale = Vector3.new((topRight - topLeft).Magnitude, (topRight - bottomRight).Magnitude, 0)
-        local visible = self.Shown and frame.Visible and self:Supported()
+    end
+
+    local lastVisible = nil
+    local function update()
+        place()
+        local visible = self.Shown and self.Frame.Visible and self:Supported()
+        -- only a change of visibility touches lighting and the theme
+        if visible == lastVisible then return end
+        lastVisible = visible
         part.Transparency = visible and 0.98 or 1
         depth.Enabled = visible
+        if visible then
+            for _, child in Services.Lighting:GetChildren() do mute(child) end
+            for _, child in camera:GetChildren() do mute(child) end
+        else
+            restore()
+        end
+        Theme.Set({ _windowBlur = visible })
     end
-    table.insert(connections, camera:GetPropertyChangedSignal("CFrame"):Connect(update))
-    table.insert(connections, camera:GetPropertyChangedSignal("FieldOfView"):Connect(update))
-    table.insert(connections, camera:GetPropertyChangedSignal("ViewportSize"):Connect(update))
-    table.insert(connections, self.Frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(update))
-    table.insert(connections, self.Frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(update))
+    table.insert(connections, camera:GetPropertyChangedSignal("CFrame"):Connect(place))
+    table.insert(connections, camera:GetPropertyChangedSignal("FieldOfView"):Connect(place))
+    table.insert(connections, camera:GetPropertyChangedSignal("ViewportSize"):Connect(place))
+    table.insert(connections, self.Frame:GetPropertyChangedSignal("AbsolutePosition"):Connect(place))
+    table.insert(connections, self.Frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(place))
+    table.insert(connections, self.Frame:GetPropertyChangedSignal("Visible"):Connect(update))
     table.insert(connections, UserSettings().GameSettings:GetPropertyChangedSignal("SavedQualityLevel"):Connect(update))
+    table.insert(connections, Services.Lighting.ChildAdded:Connect(function(child)
+        if self.Shown and self:Supported() then mute(child) end
+    end))
     update()
     self._update = update
     self._stop = function()
         for _, connection in connections do connection:Disconnect() end
+        restore()
         part:Destroy()
         depth:Destroy()
+        Theme.Set({ _windowBlur = false })
     end
 end
 
@@ -521,8 +597,6 @@ function Acrylic:SetMode(mode)
         self._stop, self._update = nil, nil
     end
     self.Mode = mode
-    -- glass needs a see-through window background to show anything
-    Theme.Set({ _windowBlur = mode == "Window" })
     local start = if mode == "Screen" then self._screen elseif mode == "Window" then self._window else nil
     if start then
         local ok, err = pcall(start, self)
@@ -3175,6 +3249,8 @@ function Tab:_enableSubTabs()
         ScrollingDirection = Enum.ScrollingDirection.X,
         Parent = holder,
     })
+    -- room for the selected chip's outline, a scrolling frame clips it otherwise
+    Util.Padding(bar, 0, 2, 0, 2)
     Util.AutoCanvas(bar, Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center), true)
     self.SubArea = Util.New("Frame", {
         Name = "Area",
@@ -4114,15 +4190,22 @@ function Window:_build()
     grip.Visible = def.Resizable ~= false
     grip.InputBegan:Connect(function(input)
         if not Util.IsPress(input) or self.Minimized then return end
-        local origin = root.AbsoluteSize / self:GetScale()
+        local scale = self:GetScale()
+        local origin = root.AbsoluteSize / scale
+        local originPosition = root.Position
         Drag.Follow(input, function(_, delta)
-            local scale = self:GetScale()
             local viewport = Layer.Bounds() / scale
             local width = math.clamp(origin.X + delta.X / scale, self.MinSize.X, viewport.X - 20)
             local height = math.clamp(origin.Y + delta.Y / scale, self.MinSize.Y, viewport.Y - 20)
             root.Size = UDim2.fromOffset(width, height)
+            -- the window is centre-anchored: shift it by half the growth so the top-left stays put
+            -- and the grip stays under the pointer
+            root.Position = originPosition + UDim2.fromOffset((width - origin.X) * scale / 2, (height - origin.Y) * scale / 2)
         end, function()
             self.Interface.Size = { math.floor(root.Size.X.Offset), math.floor(root.Size.Y.Offset) }
+            local bounds = Layer.Bounds()
+            local center = root.AbsolutePosition + root.AbsoluteSize / 2
+            self.Interface.Position = { math.floor(center.X - bounds.X / 2), math.floor(center.Y - bounds.Y / 2) }
             self:SaveState()
         end)
     end)
@@ -9126,5 +9209,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.2.0"
+Library.Version = "1.2.1"
 return Library

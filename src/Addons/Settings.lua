@@ -99,11 +99,20 @@ return function(window)
         Default = interface.Blur,
         Callback = function(mode)
             window:SetBlur(mode)
-            if mode == "Window" and not window.Acrylic:Supported() then
-                notify("Window blur needs graphics quality 8+", "Raise it in the Roblox settings or use Screen blur.", "Warning")
+            if window.Acrylic:Problem(mode) then
+                notify("Window blur can't render here", "See the note under Background blur.", "Warning")
             end
         end,
     })
+    local blurHint = effects:Label({ Text = "", Color = "Warning" })
+    local function refreshBlurHint()
+        local problem = window.Acrylic:Problem(blur:Get())
+        blurHint:Set(problem or "")
+        blurHint:SetVisible(problem ~= nil)
+    end
+    blur.Changed:Connect(refreshBlurHint)
+    window.Maid:Give(UserSettings().GameSettings:GetPropertyChangedSignal("SavedQualityLevel"):Connect(refreshBlurHint))
+    refreshBlurHint()
     effects:Slider({
         Title = "Blur strength",
         Min = 2, Max = 24, Default = interface.BlurStrength,

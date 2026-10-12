@@ -23,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.1/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.2.0/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.2.1/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.2.0"`).
+`OasisUI.Version` holds the loaded version (`"1.2.1"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.1/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -345,7 +345,9 @@ a GitHub release with `OasisUI.lua` attached and the changelog section as notes.
 
 - Background blur is off by default. `Screen` adds a `BlurEffect` to Lighting while the menu is open and works
   on every graphics level. `Window` blurs only what is behind the window with a glass part in front of the
-  camera and a `DepthOfFieldEffect`; Roblox draws glass from graphics quality 8 up.
+  camera and a `DepthOfFieldEffect`. Roblox draws glass from graphics quality 8 up, and a
+  `DFIntDebugFRMQualityLevelOverride` FFlag set by a bootstrapper overrides the menu level. The game's own
+  depth of field effects are switched off while it shows and restored afterwards.
 - Guis go to `gethui()` when the executor has it, otherwise to CoreGui, otherwise to PlayerGui.
 - Without file functions (`writefile`, `readfile`, …) everything works, but nothing is saved.
 
