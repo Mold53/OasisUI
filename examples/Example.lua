@@ -299,6 +299,12 @@ do
     toggles:Toggle({ Title = "With a key", Description = "Keybind = true, Toggle or Hold", Keybind = true, Callback = report("With a key") })
     toggles:Toggle({ Title = "Risky", Description = "Risky = true marks dangerous options", Risky = true, Callback = report("Risky") })
     toggles:Toggle({ Title = "With a tooltip", Tooltip = "Hover the i for help text.", Callback = report("With a tooltip") })
+    toggles:Toggle({
+        Title = "With a value",
+        Description = "Field = { … }: set it before switching on",
+        Field = { Default = 250, Numeric = true, Min = 0, Max = 1e6, Width = 80, Tooltip = "1.5k and 2m work.", Callback = report("Value") },
+        Callback = report("With a value"),
+    })
 
     local buttons = Controls:Section({ Title = "Button", Icon = "mouse-pointer-click", Side = "Right" })
     buttons:Button({ Title = "Default", Icon = "rocket", Callback = function() event("Button", "Default") end })
@@ -449,6 +455,20 @@ do
     media:Image({ Image = "rbxthumb://type=AvatarHeadShot&id=" .. LocalPlayer.UserId .. "&w=420&h=420", Height = 140, ScaleType = Enum.ScaleType.Fit })
     media:Image({ Image = "rbxthumb://type=GameIcon&id=" .. game.GameId .. "&w=512&h=512", AspectRatio = "16:9" })
     media:Code({ Title = "Code", Code = 'local Tab = Window:Tab({ Title = "Combat", Icon = "swords" })\nlocal Module = Tab:Module({ Title = "Aimbot", Flag = "Aimbot" })\nModule:Slider({ Title = "FOV", Min = 10, Max = 500 })' })
+    local notes = { "-- Editable = true: a click opens an editor", "local settings = {" }
+    for index = 1, 12 do table.insert(notes, string.format("    option%02d = %s,", index, tostring(index % 2 == 0))) end
+    table.insert(notes, "}")
+    media:Code({
+        Title = "Editable",
+        Code = table.concat(notes, "\n"),
+        Lines = 4,
+        Editable = true,
+        OnSave = function(text)
+            if not text:find("settings") then return false, "Keep the settings table." end
+            event("Code saved", #text .. " characters")
+            return true
+        end,
+    })
 
     local progress = Display:Section({ Title = "Progress and logs", Icon = "gauge", Side = "Right" })
     live.Download = progress:ProgressBar({ Title = "Percent", Value = 0 })
@@ -549,6 +569,21 @@ do
         panel:Slider({ Title = "Panel slider", Min = 0, Max = 10, Default = 5, Callback = report("Panel slider") })
         panel:Button({ Title = "Close", Style = "Ghost", Callback = function() panel:Hide() end })
     end })
+    local hud
+    windows:Button({ Title = "Open a HUD panel", Icon = "activity", Callback = function()
+        if hud then
+            hud:ToggleVisible()
+            return
+        end
+        -- Hud panels stay while the menu is hidden and size themselves to their rows
+        hud = Window:Panel({ Title = "Live HUD", Icon = "activity", Id = "showcase-hud", Size = Vector2.new(200, 100), Hud = true, Collapsible = false,
+            OnClose = function() event("HUD", "closed") end })
+        live.HudFps = hud:Label({ Text = "Frame rate", Value = "—", ValueColor = "Success" })
+        live.HudPing = hud:Label({ Text = "Ping", Value = "—" })
+    end })
+    windows:Slider({ Title = "HUD scale", Min = 50, Max = 200, Step = 5, Default = 100, Suffix = "%", Callback = function(value)
+        if hud then hud:SetScale(value / 100) end
+    end })
     windows:Button({ Title = "Open a context menu", Icon = "ellipsis", Callback = function()
         Window:Menu({
             { Title = "Copy", Icon = "copy", Hint = "Ctrl C", Callback = function() event("Menu", "Copy") end },
@@ -571,6 +606,10 @@ local connection = RunService.RenderStepped:Connect(function(dt)
     elapsed += dt
     if elapsed < 0.5 then return end
     live.Fps:SetValue(math.floor(frames / elapsed + 0.5) .. " fps")
+    if live.HudFps then
+        live.HudFps:SetValue(math.floor(frames / elapsed + 0.5) .. " fps")
+        live.HudPing:SetValue(math.floor(LocalPlayer:GetNetworkPing() * 1000 + 0.5) .. " ms")
+    end
     live.Ping:SetValue(math.floor(LocalPlayer:GetNetworkPing() * 1000 + 0.5) .. " ms")
     live.Memory:SetValue(math.floor(Stats:GetTotalMemoryUsageMb()) .. " MB")
     live.Session:SetValue(math.floor(os.clock() - started) .. "s")

@@ -23,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.2/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.3.0/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.2.2/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.3.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.2.2"`).
+`OasisUI.Version` holds the loaded version (`"1.3.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.2/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.3.0/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -65,20 +65,23 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
 - **Search** across every tab and sub-tab (Ctrl+F). Matching cards are shown with their tab name, cards
   that only match through a child element open automatically, and matching rows are highlighted.
 - **Keybinds** as pills on cards and rows. Click a pill and press a key, right-click it to choose Toggle, Hold
-  or Always. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while
+  or Always. `Listed = false` keeps a bind out of the keybind list. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while
   binding (keep or clear), whether mouse buttons are allowed, blacklisted keys and unclearable keys are all
   configurable, globally and per bind.
-- **Elements**: Toggle and Checkbox (both can have a key), Button (styles, confirm, key), ButtonRow,
+- **Elements**: Toggle and Checkbox (both can have a key and a value box in the same row), Button (styles,
+  confirm, key), ButtonRow,
   Slider and RangeSlider, Dropdown (single or multi, search, descriptions, icons, refresh), Input (text or
   number, validation, multiline), Keybind, ColorPicker (HSV, alpha, hex, RGB, rainbow, copy/paste),
-  Segmented, Group (collapsible sub-list), Label (with a live value), Paragraph, Divider, Spacer,
-  ProgressBar, Image, Code and Log (scrolling list of lines).
+  Segmented, Group (collapsible sub-list), Label (with a live, coloured value), Paragraph, Divider, Spacer,
+  ProgressBar, Image, Code (a short preview; a click opens the whole text, optionally editable) and Log
+  (scrolling list of lines).
   - **Slider extras**: the value is editable in the title line, `−`/`+` steppers, `From`/`To` icons, and
     min/max labels.
 - **Element states**: every element supports `Locked` (with a reason tooltip), `Visible`, and
   `DependsOn(otherElement)`.
 - **Panels**: small floating windows that hold any element. They can be dragged, collapsed, resized and
-  closed, and remember their position. HUD panels stay visible while the menu is hidden.
+  closed, and remember their position. HUD panels stay visible while the menu is hidden and size themselves
+  to their content; scale and transparency are adjustable per panel.
 - **Theme editor** in the Settings tab: presets, nine colours, window, card and field transparency,
   corner radius, font, screen fit and scale, animation speed, background gradient, animated title,
   background blur and compact sidebar. Themes can be saved, loaded, exported and imported.
@@ -93,6 +96,10 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
 - **Window**: drag, resize, minimize to a title pill, hide with the menu key, fit to small screens, and a
   menu button on touch devices. Profile card with custom name, subtitle and avatar, or hidden; streamer
   mode. The menu remembers its position, size, last tab and sub-tab.
+- **Touch screens**: drags hold the scroll area still and end cleanly when the system cancels a touch,
+  tooltips show on a tap of the info icon or a locked control, a long press opens the menus that right-click
+  opens with a mouse, stars and grips stay visible without hover, and the window keeps its text readable on
+  phones by shrinking instead of scaling down.
 - **Re-running a script** unloads the previous instance (same `GuiName`).
 
 ## Window
@@ -128,7 +135,7 @@ local Window = OasisUI:CreateWindow({
 | `Window:TabSection(text)` / `Window:Divider()` | caption or line in the sidebar |
 | `Window:SelectTab(tab \| subTab \| index \| title, focusModule?)` / `Window:SelectFavorites()` | |
 | `Window:Panel(def)` | floating panel (below) |
-| `Window:Dialog({ Title, Content, Icon, Input = { Default, Placeholder }, Buttons = { { Title, Style, Callback(text, dialog) } } })` | return `false` from a callback to keep it open; `dialog:SetError(text)` |
+| `Window:Dialog({ Title, Content, Icon, Width, Input = { Default, Placeholder, Multiline, Height, Monospace, ReadOnly }, Buttons = { { Title, Style, Callback(text, dialog) } } })` | return `false` from a callback to keep it open; `dialog:SetError(text)`; a multiline input scrolls |
 | `Window:Menu(items, { Title, Anchor, Width })` | context menu; items `{ Title, Icon, Callback, Checked, Danger, Disabled, Hint }` or `"-"` |
 | `Window:Notify(options)` | same as `OasisUI:Notify` |
 | `Window:SetVisible(bool)`, `:Toggle()`, `:SetMinimized(bool)`, `:SetCompact(bool)` | |
@@ -184,25 +191,25 @@ Shared methods: `Get()`, `Set(value, silent?)`, `Reset()`, `OnChanged(fn)`, `Set
 
 | Element | Options | Extra methods |
 | --- | --- | --- |
-| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }` | `Binding` |
+| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }`, `Listed`, `Field = { Input options, Width }` (a value box in the row, settable while off, with its own `Flag`) | `Binding`, `Field` (the value box, an Input) |
 | `Button` | `Icon`, `Style = "Default" \| "Primary" \| "Danger" \| "Ghost"`, `Confirm = true \| text`, `Keybind` | `Press()` |
 | `Buttons` | list of `{ Title, Icon, Style, Confirm, Callback }` | `SetButtonTitle(i, text)`, `SetButtonLocked(i, bool)` |
 | `Slider` | `Min`, `Max`, `Default`, `Step` or `Rounding`, `Prefix`, `Suffix`, `Format(v)`, `Input` (editable value, default on), `Buttons` (−/+), `Icons = { From, To }`, `ShowRange`, `Live` (default on) | `SetMin`, `SetMax` |
 | `Range` | as Slider, `Default = { lo, hi }`, `MinGap`; callback gets `(lo, hi)` | |
 | `Dropdown` | `Values` (strings or `{ Title, Value, Description, Icon }`), `Default`, `Multi`, `Search` (auto above 8), `AllowNone`, `Placeholder`, `MaxVisible` | `Refresh(values, keep?)`, `Add`, `Remove`, `Toggle(value)`, `IsSelected`, `GetValues` |
 | `Input` | `Default`, `Placeholder`, `Numeric`, `Min`, `Max`, `Step`, `MaxLength`, `Finished` (default on), `Validate(text) -> ok, message`, `Icon`, `Multiline`, `Height`, `ClearOnFocus` | `Submit(text)` |
-| `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, capture options (below), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
+| `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, `Listed`, capture options (below), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
 | `ColorPicker` | `Default`, `Transparency` (enables alpha), `Rainbow`; callback gets `(color, transparency)` | `SetRainbow(bool)` |
 | `Segmented` | `Values`, `Default` | |
 | `Group` | `Opened`, `Icon` (holds elements itself) | `SetOpened(bool)` |
-| `Label` | `Text`, `Value` (right aligned), `Color` (theme token), `Size` | `Set(text)`, `SetValue(text)` |
+| `Label` | `Text`, `Value` (right aligned), `Color` (theme token), `ValueColor` (token or Color3), `Size` | `Set(text)`, `SetValue(text)`, `SetValueColor(color)` |
 | `Paragraph` | `Title`, `Content` (rich text), `Icon` | `SetContent(text)` |
 | `ProgressBar` | `Value`, `Max`, `Suffix`, `Format(v, max)`, `Color` | `SetMax` |
 | `Log` | `Height` (default 140), `MaxLines`, `Monospace`, `Timestamps`, `AutoScroll` | `Add(text, colorToken?)`, `Clear()`, `Set(lines)` |
 | `Divider` | `Text` | |
 | `Spacer` | `Height` | |
 | `Image` | `Image`, `Height` or `AspectRatio`, `Radius`, `ScaleType` | |
-| `Code` | `Code`, `OnCopy()` | |
+| `Code` | `Code`, `Lines` (preview, default 6), `Editable`, `OnSave(text) -> ok, message` (`false` keeps the editor open), `OnCopy()` | `Open()` |
 
 ## Panels
 
@@ -217,9 +224,14 @@ local Panel = Window:Panel({
     Collapsible = true,
     Resizable = false,
     Hud = false,                          -- true: stays visible while the menu is hidden
+    AutoSize = nil,                       -- height follows the content, no scrolling (default: on for Hud panels)
+    Scale = 1,                            -- 1 = 100 %; Hud panels use it alone, others on top of the window scale
+    Transparency = nil,                   -- 0-1 background, nil = from the theme
+    OnClose = nil,                        -- the user closed it with its x
 })
 Panel:Toggle({ Title = "Option" })
 Panel:Show(); Panel:Hide(); Panel:ToggleVisible(); Panel:SetCollapsed(true); Panel:SetTitle("…"); Panel:Destroy()
+Panel:SetScale(1.25); Panel:SetTransparency(0.4); Panel.Closed:Connect(fn)
 ```
 
 ## Keybinds
@@ -246,7 +258,7 @@ The global defaults for `ClickOutside`, `Escape` and mouse buttons live in Setti
 ```lua
 OasisUI:SetTheme("Midnight")              -- Sapphire, Obsidian, Midnight, Ocean, Emerald, Amber, Crimson, Rose, Paper
 OasisUI:SetAccent(Color3.fromRGB(255, 120, 60))
-OasisUI.Theme.Set({ SurfaceTransparency = 0.5, Radius = 8, Font = "Montserrat" })
+OasisUI.Theme.Set({ SurfaceTransparency = 0.5, Radius = 8, Font = "Nunito" })
 ```
 
 Colour tokens: `Accent`, `AccentAlt`, `Background`, `BackgroundAlt`, `Surface`, `SurfaceHover`, `Elevated`,
@@ -257,7 +269,7 @@ Style tokens: `WindowTransparency`, `SurfaceTransparency`, `ElevatedTransparency
 `AnimatedTitle`.
 
 `Font` takes a Roblox font family name. The Settings list offers the families that render differently:
-Montserrat (default), BuilderSans, Ubuntu, Nunito, Roboto, SourceSansPro, Arimo, JosefinSans, TitilliumWeb,
+Ubuntu (default), Montserrat, BuilderSans, Nunito, Roboto, SourceSansPro, Arimo, JosefinSans, TitilliumWeb,
 Oswald, Jura, Zekton, Michroma, Merriweather, FredokaOne, RobotoMono. `GothamSSm` draws Montserrat and
 `Arial` draws Arimo, so they are not listed.
 

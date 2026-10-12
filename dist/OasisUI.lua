@@ -1,4 +1,4 @@
--- OasisUI v1.2.2 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.3.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -754,7 +754,9 @@ local STYLES = {
     Danger    = { Bg = "Danger", Text = "OnAccent" },
 }
 
--- options: Title, Content, Icon, Width, Input = { Placeholder, Default }, Buttons = { { Title, Style, Callback(text) } }
+-- options: Title, Content, Icon, Width, OnClose,
+--          Input = { Placeholder, Default, Multiline, Height, Monospace, ReadOnly },
+--          Buttons = { { Title, Style, Callback(text, dialog) } }
 function Dialog.Open(root, options)
     local maid = Maid.new()
     local handle = {}
@@ -770,10 +772,12 @@ function Dialog.Open(root, options)
     }))
     Util.Corner("Radius", shade)
 
+    -- never wider or taller than the window it covers
+    local inner = root.AbsoluteSize / math.max(Util.ScaleOf(root), 0.01)
     local card = Util.New("Frame", {
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = UDim2.fromOffset(options.Width or 340, 0),
+        Size = UDim2.fromOffset(math.min(options.Width or 340, inner.X - 24), 0),
         AutomaticSize = Enum.AutomaticSize.Y,
         ZIndex = 81,
         Theme = { BackgroundColor3 = "Elevated" },
@@ -817,9 +821,12 @@ function Dialog.Open(root, options)
     end
 
     local box
-    if options.Input then
+    local input = options.Input
+    if input then
+        local multiline = input.Multiline == true
+        local height = multiline and math.min(input.Height or 160, inner.Y - 170) or 30
         local field = Util.New("Frame", {
-            Size = UDim2.new(1, 0, 0, 30),
+            Size = UDim2.new(1, 0, 0, height),
             LayoutOrder = 3,
             ZIndex = 82,
             Theme = { BackgroundColor3 = "Surface" },
@@ -827,15 +834,36 @@ function Dialog.Open(root, options)
         })
         Util.Corner("ElementRadius", field)
         local stroke = Util.Stroke(field)
+        local font = input.Monospace and function() return Font.new("rbxasset://fonts/families/RobotoMono.json") end
+            or Theme.Font(Enum.FontWeight.Medium)
+        local holder = field
+        if multiline then
+            -- long text scrolls inside the field
+            holder = Util.New("ScrollingFrame", {
+                Size = UDim2.new(1, -8, 1, -12),
+                Position = UDim2.fromOffset(4, 6),
+                ScrollBarThickness = 3,
+                ZIndex = 83,
+                Theme = { ScrollBarImageColor3 = "TextMuted" },
+                Parent = field,
+            })
+            Util.Padding(holder, 0, 6, 2, 6)
+            Util.AutoCanvas(holder, Util.List(holder, 0))
+        end
         box = Util.New("TextBox", {
-            Size = UDim2.new(1, -20, 1, 0),
-            Position = UDim2.fromOffset(10, 0),
-            Text = options.Input.Default or "",
-            PlaceholderText = options.Input.Placeholder or "",
+            Size = multiline and UDim2.new(1, 0, 0, 0) or UDim2.new(1, -20, 1, 0),
+            Position = UDim2.fromOffset(multiline and 0 or 10, 0),
+            AutomaticSize = multiline and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
+            Text = input.Default or "",
+            PlaceholderText = input.Placeholder or "",
             TextSize = 12,
-            ZIndex = 83,
-            Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
-            Parent = field,
+            MultiLine = multiline,
+            TextWrapped = multiline,
+            TextEditable = input.ReadOnly ~= true,
+            TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
+            ZIndex = 84,
+            Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
+            Parent = holder,
         })
         box.Focused:Connect(function() Theme.Bind(stroke, { Color = "Accent" }) end)
         box.FocusLost:Connect(function() Theme.Bind(stroke, { Color = "Stroke" }) end)
@@ -918,7 +946,8 @@ function Dialog.Open(root, options)
 
     Util.Tween(shade, 0.18, { BackgroundTransparency = 0.45 })
     Util.Tween(scale, 0.2, { Scale = 1 }, Enum.EasingStyle.Back)
-    if box then task.defer(function() box:CaptureFocus() end) end
+    -- touch: no keyboard popping up by itself, a tap on the field focuses it
+    if box and not input.ReadOnly and not Util.Touch() then task.defer(function() box:CaptureFocus() end) end
     return handle
 end
 
@@ -1097,8 +1126,7 @@ function Menu.Open(options)
                         Parent = button,
                     })
                 end
-                button.MouseEnter:Connect(function() hover = true; Theme.Refresh(button, 0.1) end)
-                button.MouseLeave:Connect(function() hover = false; Theme.Refresh(button, 0.1) end)
+                Util.Hover(button, function(on) hover = on; Theme.Refresh(button, 0.1) end)
                 button.MouseButton1Click:Connect(function()
                     if item.Disabled then return end
                     popup:Close()
@@ -1424,7 +1452,8 @@ function Module:Render(parent, maid, view)
         LayoutOrder = 1,
         Theme = {
             ImageColor3 = function(t) return self.Favorite and t.Warning or t.TextMuted end,
-            ImageTransparency = function() return (self.Favorite and 0) or (hover and 0.25) or 1 end,
+            -- touch has no hover: the star stays faintly visible
+            ImageTransparency = function() return (self.Favorite and 0) or (hover and 0.25) or (Util.Touch() and 0.55) or 1 end,
         },
         Parent = right,
     })
@@ -1437,7 +1466,7 @@ function Module:Render(parent, maid, view)
             LayoutOrder = 2,
             Theme = {
                 ImageColor3 = "TextMuted",
-                ImageTransparency = function() return hover and 0.25 or 1 end,
+                ImageTransparency = function() return (hover and 0.25) or (Util.Touch() and 0.55) or 1 end,
             },
             Parent = right,
         })
@@ -1527,7 +1556,8 @@ function Module:Render(parent, maid, view)
         AutomaticSize = Enum.AutomaticSize.Y,
         Parent = body,
     })
-    Util.Padding(options, self.Toggleable and 2 or 0, 12, 12, 12)
+    -- 2 px on top: the body clips, a first control's outline would lose its top edge
+    Util.Padding(options, 2, 12, 12, 12)
     Util.List(options, 9)
     self:_mountChildren(options, maid)
 
@@ -1539,7 +1569,11 @@ function Module:Render(parent, maid, view)
         Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.45 end },
         Parent = body,
     })
-    maid:Give(Tooltip.Attach(lockShade, "Locked. Right-click the header to unlock."))
+    local function lockText()
+        return Util.Touch() and "Locked. Hold the header to unlock." or "Locked. Right-click the header to unlock."
+    end
+    maid:Give(Tooltip.Attach(lockShade, lockText))
+    lockShade.MouseButton1Click:Connect(function() Tooltip.Show(lockText()) end)
 
     local animating = 0
     local function height()
@@ -1553,18 +1587,24 @@ function Module:Render(parent, maid, view)
             local mine = animating
             Util.Tween(body, 0.28, { Size = UDim2.new(1, 0, 0, goal) })
             task.delay(0.3 / math.max(Theme.Current.AnimSpeed or 1, 0.05), function()
-                if mine == animating then animating = 0 end
+                if mine ~= animating then return end
+                animating = 0
+                -- content that resized during the animation (wrapped text, late layouts) is caught up here
+                if self.Expanded and #self.Children > 0 then body.Size = UDim2.new(1, 0, 0, height()) end
             end)
         else
             body.Size = UDim2.new(1, 0, 0, goal)
         end
-        local rotation = self.Expanded and 180 or 0
-        if chevron then Util.Tween(chevron, animate and 0.2 or 0, { Rotation = rotation }) end
+        -- up while open: a click folds it; an image swap, Rotation does not render inside the clipping columns
+        local arrow = Util.IconId(self.Expanded and "chevron-up" or "chevron-down")
+        if chevron then
+            chevron.Image = arrow
+            chevron.Visible = #self.Children > 0
+        end
         if headChevron then
-            Util.Tween(headChevron, animate and 0.2 or 0, { Rotation = rotation })
+            headChevron.Image = arrow
             headChevron.Visible = #self.Children > 0
         end
-        if chevron then chevron.Visible = #self.Children > 0 end
     end
     paintBody(false)
     maid:Give(options:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
@@ -1592,18 +1632,12 @@ function Module:Render(parent, maid, view)
         Theme.Refresh(stroke, 0.2)
     end))
 
-    card.MouseEnter:Connect(function()
-        hover = true
+    maid:Give(Util.Hover(card, function(on)
+        hover = on
         Theme.Refresh(star, 0.12)
         if grip then Theme.Refresh(grip, 0.12) end
         Theme.Refresh(stroke, 0.12)
-    end)
-    card.MouseLeave:Connect(function()
-        hover = false
-        Theme.Refresh(star, 0.12)
-        if grip then Theme.Refresh(grip, 0.12) end
-        Theme.Refresh(stroke, 0.12)
-    end)
+    end))
 
     star.MouseButton1Click:Connect(function() self:SetFavorite(not self.Favorite) end)
     if grip then
@@ -1611,7 +1645,11 @@ function Module:Render(parent, maid, view)
             if Util.IsPress(input) then view.Page:BeginDrag(view, input) end
         end)
     end
+    -- touch: a long press opens the menu that right-click opens with a mouse
+    local press, consumed = Util.LongPress(hit, function(point) self:_menu(view, point) end)
+    maid:Give(press)
     hit.MouseButton1Click:Connect(function()
+        if consumed() then return end
         if self.Toggleable then
             if not self.Locked then self:ToggleEnabled() end
         else
@@ -1837,8 +1875,7 @@ function Notification.Notify(options)
 
     if duration ~= math.huge and duration > 0 then
         local hovered = false
-        card.MouseEnter:Connect(function() hovered = true end)
-        card.MouseLeave:Connect(function() hovered = false end)
+        Util.Hover(card, function(on) hovered = on end)
         task.spawn(function()
             local left = duration
             while left > 0 and not closed and wrapper.Parent do
@@ -2503,6 +2540,7 @@ function Page:BeginDrag(view, input)
     local card = view.Card
     local window = self.Window
     local start = Util.Pointer(input)
+    local last = start
     local started = false
     local placeholder, ghostOffset, autoscroll
     local target = view.Column
@@ -2553,7 +2591,8 @@ function Page:BeginDrag(view, input)
         card.Parent = window.DragLayer
         card.Size = UDim2.fromOffset(width, 0)
         autoscroll = Services.RunService.Heartbeat:Connect(function()
-            local point = Util.Pointer()
+            -- the drag's own point: the mouse location is not the dragging finger on touch
+            local point = last
             local column = self.Columns[target]
             if not column then return end
             local top, bottom = column.AbsolutePosition.Y, column.AbsolutePosition.Y + column.AbsoluteSize.Y
@@ -2566,6 +2605,7 @@ function Page:BeginDrag(view, input)
     end
 
     Drag.Follow(input, function(point)
+        last = point
         if not started then
             if (point - start).Magnitude < 5 then return end
             begin()
@@ -2585,7 +2625,7 @@ function Page:BeginDrag(view, input)
         card.LayoutOrder = placeholder.LayoutOrder
         placeholder:Destroy()
         self:SaveLayout()
-    end)
+    end, card)
 end
 
 return Page
@@ -2594,14 +2634,18 @@ end
 __modules["Components/Panel"] = function(...)
 local import = ...
 local Util = import("Core/Util")
+local Theme = import("Core/Theme")
 local Maid = import("Core/Maid")
+local Signal = import("Core/Signal")
 local Drag = import("Core/Drag")
 local Layer = import("Components/Layer")
 local Container = import("Components/Container")
 local Tooltip = import("Components/Tooltip")
 
 -- small floating window that holds elements; Hud panels stay visible while the menu is hidden
--- def: Title, Icon, Id, Size (Vector2 | UDim2), Position (UDim2), Closable, Collapsible, Resizable, Hud, Visible
+-- def: Title, Icon, Id, Size (Vector2 | UDim2), Position (UDim2), Closable, Collapsible, Resizable, Hud, Visible,
+--      AutoSize (height follows the content, no scrolling; default on for Hud panels), Scale (1 = 100 %),
+--      Transparency (0-1, default from the theme), OnClose() (the user closed it)
 local Panel = {}
 Panel.__index = Panel
 Container.Apply(Panel)
@@ -2617,6 +2661,10 @@ function Panel.new(window, def)
         Id = def.Id or def.Title or "Panel",
         Visible = def.Visible ~= false,
         Collapsed = false,
+        AutoSize = def.AutoSize == true or (def.AutoSize == nil and def.Hud == true),
+        ScaleFactor = def.Scale or 1,
+        Transparency = def.Transparency,
+        Closed = Signal.new(),
         Maid = Maid.new(),
     }, Panel)
     Container.Setup(self)
@@ -2632,13 +2680,14 @@ function Panel.new(window, def)
         ClipsDescendants = true,
         Active = true,
         Visible = false,
-        Theme = { BackgroundColor3 = "Background", BackgroundTransparency = function(t) return math.min(t.WindowTransparency, 0.15) end },
+        Theme = { BackgroundColor3 = "Background", BackgroundTransparency = function(t) return self.Transparency or math.min(t.WindowTransparency, 0.15) end },
         Parent = def.Hud and Layer.Hud or Layer.Main,
     }))
     self.Frame = frame
     Util.Corner("Radius", frame)
     Util.Stroke(frame)
-    self.UIScale = Util.New("UIScale", { Scale = def.Hud and 1 or window:GetScale(), Parent = frame })
+    self.UIScale = Util.New("UIScale", { Parent = frame })
+    self:_applyScale()
 
     local saved = window.Interface.Panels[self.Id]
     if type(saved) == "table" then
@@ -2704,23 +2753,52 @@ function Panel.new(window, def)
         end)
     end
     if def.Closable ~= false then
-        action("x", 2, "Close", function() self:SetVisible(false) end)
+        action("x", 2, "Close", function()
+            self:SetVisible(false)
+            Util.Safe(def.OnClose)
+            self.Closed:Fire()
+        end)
     end
     local rule = Util.New("Frame", { Position = UDim2.fromOffset(10, HEAD), Size = UDim2.new(1, -20, 0, 1), Theme = { BackgroundColor3 = "Divider" }, Parent = frame })
     Util.New("UIGradient", { Transparency = NumberSequence.new({ NumberSequenceKeypoint.new(0, 1), NumberSequenceKeypoint.new(0.15, 0), NumberSequenceKeypoint.new(0.85, 0), NumberSequenceKeypoint.new(1, 1) }), Parent = rule })
 
-    local body = Util.New("ScrollingFrame", {
-        Name = "Body",
-        Position = UDim2.fromOffset(0, HEAD + 1),
-        Size = UDim2.new(1, 0, 1, -HEAD - 1),
-        ScrollBarThickness = 2,
-        Theme = { ScrollBarImageColor3 = "TextMuted" },
-        Parent = frame,
-    })
-    Util.Padding(body, 10, 12, 12, 12)
-    Util.AutoCanvas(body, Util.List(body, 9))
+    local body
+    if self.AutoSize then
+        -- a plain frame; the panel's height follows it
+        body = Util.New("Frame", {
+            Name = "Body",
+            BackgroundTransparency = 1,
+            Position = UDim2.fromOffset(0, HEAD + 1),
+            Size = UDim2.new(1, 0, 0, 0),
+            AutomaticSize = Enum.AutomaticSize.Y,
+            Parent = frame,
+        })
+        Util.Padding(body, 10, 12, 12, 12)
+        local layout = Util.List(body, 9)
+        local function fit()
+            if not frame.Parent then return end
+            local content = layout.AbsoluteContentSize.Y / math.max(Util.ScaleOf(body), 0.01)
+            local height = HEAD + 1 + 10 + 12 + math.ceil(content)
+            self.Size = UDim2.new(self.Size.X, UDim.new(0, height))
+            if not self.Collapsed then frame.Size = self.Size end
+        end
+        self.Maid:Give(layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(fit))
+        self._fit = fit
+    else
+        body = Util.New("ScrollingFrame", {
+            Name = "Body",
+            Position = UDim2.fromOffset(0, HEAD + 1),
+            Size = UDim2.new(1, 0, 1, -HEAD - 1),
+            ScrollBarThickness = 2,
+            Theme = { ScrollBarImageColor3 = "TextMuted" },
+            Parent = frame,
+        })
+        Util.Padding(body, 10, 12, 12, 12)
+        Util.AutoCanvas(body, Util.List(body, 9))
+    end
     self.Body = body
     self:_mountChildren(body, self.Maid)
+    if self._fit then task.defer(self._fit) end
 
     self.Maid:Give(Drag.Attach(head, frame, {
         Enabled = function() return not Util.Contains(actions, Util.Pointer()) end,
@@ -2733,14 +2811,15 @@ function Panel.new(window, def)
     }))
 
     if def.Resizable then
-        local grip = Util.New("TextButton", { AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -2, 1, -2), Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, ZIndex = 10, Parent = frame })
-        Util.Icon("grip-vertical", { Size = UDim2.fromOffset(10, 10), Position = UDim2.fromOffset(2, 2), Rotation = 45, Color = "TextMuted", Parent = grip })
+        local grip = Util.Grip({ AnchorPoint = Vector2.new(1, 1), Position = UDim2.new(1, -2, 1, -2), Size = UDim2.fromOffset(14, 14), BackgroundTransparency = 1, ZIndex = 10, Parent = frame })
         grip.InputBegan:Connect(function(input)
             if not Util.IsPress(input) or self.Collapsed then return end
             local origin = frame.AbsoluteSize / self.UIScale.Scale
             Drag.Follow(input, function(_, delta)
                 local scale = self.UIScale.Scale
-                frame.Size = UDim2.fromOffset(math.max(origin.X + delta.X / scale, 180), math.max(origin.Y + delta.Y / scale, 120))
+                -- an auto-sized panel keeps its content height, only the width follows
+                local height = self.AutoSize and self.Size.Y.Offset or math.max(origin.Y + delta.Y / scale, 120)
+                frame.Size = UDim2.fromOffset(math.max(origin.X + delta.X / scale, 180), height)
             end, function()
                 self.Size = frame.Size
             end)
@@ -2777,6 +2856,22 @@ function Panel:SetCollapsed(collapsed)
     Util.Tween(self.Frame, 0.25, { Size = self.Collapsed and UDim2.new(self.Size.X, UDim.new(0, HEAD)) or self.Size })
 end
 
+-- multiplier (1 = 100 %); a Hud panel uses it alone, others on top of the window's scale
+function Panel:SetScale(multiplier)
+    self.ScaleFactor = math.max(tonumber(multiplier) or 1, 0.1)
+    self:_applyScale()
+end
+
+function Panel:_applyScale()
+    self.UIScale.Scale = self.ScaleFactor * (self.Def.Hud and 1 or self.Window:GetScale())
+end
+
+-- background transparency 0-1; nil goes back to the theme
+function Panel:SetTransparency(value)
+    self.Transparency = value
+    Theme.Refresh(self.Frame)
+end
+
 function Panel:SetTitle(text)
     self.Title = text
     self.TitleLabel.Text = text
@@ -2784,6 +2879,7 @@ end
 
 function Panel:Destroy()
     for _, child in table.clone(self.Children) do child:Destroy() end
+    self.Closed:Destroy()
     local index = table.find(self.Window.Panels, self)
     if index then table.remove(self.Window.Panels, index) end
     self.Maid:Clean()
@@ -3028,13 +3124,17 @@ function Row.new(element, parent, maid, options)
 
     local info
     if element.Tooltip then
-        info = Util.Icon("info", {
+        -- a button: a tap shows the text on touch and does not reach the row's own click
+        info = Util.New("ImageButton", {
             Size = UDim2.fromOffset(11, 11),
-            Color = "TextMuted",
+            Image = Util.IconId("info"),
+            ScaleType = Enum.ScaleType.Fit,
             LayoutOrder = 2,
+            Theme = { ImageColor3 = "TextMuted" },
             Parent = titleLine,
         })
         maid:Give(Tooltip.Attach(info, function() return element.Tooltip end))
+        info.MouseButton1Click:Connect(function() Tooltip.Show(element.Tooltip) end)
     end
 
     local desc = Util.Label({
@@ -3094,6 +3194,7 @@ function Row.new(element, parent, maid, options)
     })
     Util.Corner(6, overlay)
     maid:Give(Tooltip.Attach(overlay, function() return element.LockReason or "Locked" end))
+    overlay.MouseButton1Click:Connect(function() Tooltip.Show(element.LockReason or "Locked") end)
 
     local function sync(what)
         if what == nil or what == "Title" then title.Text = element.Title end
@@ -3133,8 +3234,7 @@ function Row.Field(parent, props)
     })
     Util.Corner(props.Radius or 6, field)
     local stroke = Util.Stroke(field, function(t) return focused and t.Accent or t.Stroke end, function(t) return focused and 0.2 or t.StrokeTransparency + 0.1 end)
-    field.MouseEnter:Connect(function() hover = true; Theme.Refresh(field, 0.12) end)
-    field.MouseLeave:Connect(function() hover = false; Theme.Refresh(field, 0.12) end)
+    Util.Hover(field, function(on) hover = on; Theme.Refresh(field, 0.12) end)
     local api = {}
     function api.SetFocused(on)
         focused = on
@@ -3328,8 +3428,7 @@ function Tab:_chip(sub)
         for _, inst in { button, stroke, label, icon } do Theme.Refresh(inst, 0.15) end
     end
     sub.Chip = { Button = button, Label = label, State = state, Paint = paint }
-    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
-    button.MouseLeave:Connect(function() state.Hover = false; paint() end)
+    Util.Hover(button, function(on) state.Hover = on; paint() end)
     button.MouseButton1Click:Connect(function() self.Window:SelectTab(sub) end)
     table.insert(self.SubTabs, sub)
     if not self.ActiveSub then self:_showSub(sub, true) end
@@ -3383,8 +3482,10 @@ local Util = import("Core/Util")
 local Layer = import("Components/Layer")
 
 -- one shared hover label; shows after a short delay and follows the mouse
+-- touch: placed once at the finger, hidden after a moment or by the next touch
 local Tooltip = {}
-local frame, label, follow
+local TOUCH_TIME = 2.5
+local frame, label, follow, touchHide
 local token = 0
 -- while a popup is open only its own controls show tooltips (set by Popup)
 Tooltip.Owner = nil
@@ -3416,28 +3517,44 @@ end
 local function hide()
     token += 1
     if follow then follow:Disconnect(); follow = nil end
+    if touchHide then touchHide:Disconnect(); touchHide = nil end
     if frame then frame.Visible = false end
+end
+
+local function place()
+    local mouse = Util.Pointer()
+    local viewport = Layer.Bounds()
+    local size = frame.AbsoluteSize
+    local x = math.clamp(mouse.X + 14, 6, math.max(6, viewport.X - size.X - 6))
+    local y = mouse.Y + 18
+    if y + size.Y > viewport.Y - 6 then y = mouse.Y - size.Y - 8 end
+    frame.Position = UDim2.fromOffset(x / Layer.Scale, y / Layer.Scale)
 end
 
 local function show(text)
     ensure()
     label.Text = text
     frame.Visible = true
-    if follow then follow:Disconnect() end
-    follow = Services.RunService.RenderStepped:Connect(function()
-        local mouse = Util.Pointer()
-        local viewport = Layer.Bounds()
-        local size = frame.AbsoluteSize
-        local x = math.min(mouse.X + 14, viewport.X - size.X - 6)
-        local y = mouse.Y + 18
-        if y + size.Y > viewport.Y - 6 then y = mouse.Y - size.Y - 8 end
-        frame.Position = UDim2.fromOffset(x / Layer.Scale, y / Layer.Scale)
-    end)
+    if follow then follow:Disconnect(); follow = nil end
+    if touchHide then touchHide:Disconnect(); touchHide = nil end
+    if Util.Touch() then
+        place()
+        task.defer(place)                            -- again once the label has its size
+        local mine = token
+        task.delay(TOUCH_TIME, function() if mine == token then hide() end end)
+        touchHide = Services.UserInputService.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.Touch then hide() end
+        end)
+    else
+        follow = Services.RunService.RenderStepped:Connect(place)
+    end
 end
 
 -- text may be a function evaluated on hover; returns connections for a maid
+-- touch has no hover: taps on info icons and locks call Tooltip.Show instead
 function Tooltip.Attach(gui, text)
     local enter = gui.MouseEnter:Connect(function()
+        if Util.Touch() then return end
         token += 1
         local mine = token
         task.delay(0.35, function()
@@ -3463,6 +3580,12 @@ function Tooltip.Attach(gui, text)
 end
 
 Tooltip.Hide = hide
+
+-- shows text right away, e.g. for a tap on an info icon
+function Tooltip.Show(text)
+    token += 1
+    if type(text) == "string" and text ~= "" then show(text) end
+end
 
 return Tooltip
 end
@@ -3603,15 +3726,14 @@ function Widgets.KeyPill(parent, binding, props)
     table.insert(connections, binding.Changed:Connect(paint))
     table.insert(connections, Tooltip.Attach(pill, function()
         if binding.Capturing then return "Press a key · Esc cancels · Backspace clears" end
-        local text = "Click to bind"
-        if #binding.Modes > 1 then text ..= " · right-click for mode" end
+        local touch = Util.Touch()
+        local text = touch and "Tap to bind" or "Click to bind"
+        if #binding.Modes > 1 then text ..= touch and " · hold for mode" or " · right-click for mode" end
         return text .. (binding.Key and ("\nMode: " .. binding.Mode) or "")
     end))
 
-    pill.MouseEnter:Connect(function() hover = true; Theme.Refresh(pill, 0.12) end)
-    pill.MouseLeave:Connect(function() hover = false; Theme.Refresh(pill, 0.12) end)
-    pill.MouseButton1Click:Connect(function() binding:Capture() end)
-    pill.MouseButton2Click:Connect(function()
+    table.insert(connections, Util.Hover(pill, function(on) hover = on; Theme.Refresh(pill, 0.12) end))
+    local function menu()
         local items: { any } = {}
         if #binding.Modes > 1 then
             for _, name in binding.Modes do
@@ -3628,7 +3750,14 @@ function Widgets.KeyPill(parent, binding, props)
             table.insert(items, { Title = "Clear key", Icon = "x", Danger = true, Disabled = binding.Key == nil, Callback = function() binding:SetKey(nil) end })
         end
         Menu.Open({ Anchor = pill, Items = items, Width = 150, Title = "Keybind" })
+    end
+    -- touch: a long press opens the menu that right-click opens with a mouse
+    local press, consumed = Util.LongPress(pill, menu)
+    table.insert(connections, press)
+    pill.MouseButton1Click:Connect(function()
+        if not consumed() then binding:Capture() end
     end)
+    pill.MouseButton2Click:Connect(menu)
 
     return pill, {
         Disconnect = function()
@@ -3804,7 +3933,9 @@ function Window:_touch(binds)
     if self.Overlays and (binds or self.Interface.KeybindList) then self.Overlays:RefreshBinds() end
 end
 
+-- Listed = false keeps a bind out of the keybind list (e.g. a key the game itself uses)
 function Window:_trackBind(owner)
+    if owner.Def and owner.Def.Listed == false then return end
     table.insert(self._binds, owner)
 end
 
@@ -3851,6 +3982,7 @@ end
 function Window:_build()
     local def = self.Def
     local size = def.Size or UDim2.fromOffset(780, 520)
+    self.DefaultSize = size
     if type(self.Interface.Size) == "table" then size = UDim2.fromOffset(self.Interface.Size[1], self.Interface.Size[2]) end
     self.MinSize = def.MinSize or MIN_SIZE
 
@@ -4171,7 +4303,7 @@ function Window:_build()
     self:_sidebarDivider(-99)
 
     -- resize grip
-    local grip = Util.New("TextButton", {
+    local grip = Util.Grip({
         Name = "Resize",
         AnchorPoint = Vector2.new(1, 1),
         Position = UDim2.new(1, -3, 1, -3),
@@ -4180,16 +4312,6 @@ function Window:_build()
         ZIndex = 50,
         Parent = root,
     })
-    for index, length in { 10, 5 } do
-        Util.New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromOffset(10 + index * 1.5, 10 + index * 1.5),
-            Size = UDim2.fromOffset(length, 1),
-            Rotation = -45,
-            Theme = { BackgroundColor3 = "TextMuted" },
-            Parent = grip,
-        })
-    end
     self.Grip = grip
     grip.Visible = def.Resizable ~= false
     grip.InputBegan:Connect(function(input)
@@ -4390,8 +4512,7 @@ function Window:_entry(parent, text, icon, order, onClick)
         badgeText.Text = tostring(value or "")
         entry.BadgeValue = value
     end
-    button.MouseEnter:Connect(function() entry.Hover = true; paint(true) end)
-    button.MouseLeave:Connect(function() entry.Hover = false; paint(true) end)
+    Util.Hover(button, function(on) entry.Hover = on; paint(true) end)
     button.MouseButton1Click:Connect(onClick)
     Tooltip.Attach(button, function() return self.Interface.Compact and text or nil end)
     paint(false)
@@ -4423,10 +4544,23 @@ function Window:_fitScale()
     local scale = math.clamp(tonumber(self.Interface.Scale) or 1, 0.25, 4)
     if self.Interface.FitScreen ~= false then
         local bounds = Layer.Bounds()
-        local size = self.Minimized and self._restoreSize or self.Root.Size
         local viewport = workspace.CurrentCamera.ViewportSize
-        scale *= math.clamp(viewport.Y / 1080, 0.5, 2)
-        scale = math.min(scale, (bounds.X - 24) / size.X.Offset, (bounds.Y - 24) / size.Y.Offset)
+        if Util.Touch() and not self.Minimized then
+            -- phones: a 1080p-relative scale would shrink the text to a few pixels; the text stays readable
+            -- and the window gives up size instead (down to MinSize), the chosen size is kept for bigger screens
+            scale *= math.clamp(viewport.Y / 450, 0.75, 1.5)
+            local want = type(self.Interface.Size) == "table" and Vector2.new(self.Interface.Size[1], self.Interface.Size[2])
+                or Vector2.new(self.DefaultSize.X.Offset, self.DefaultSize.Y.Offset)
+            local room = (bounds - Vector2.new(24, 24)) / scale
+            local width = math.max(math.min(want.X, room.X), self.MinSize.X)
+            local height = math.max(math.min(want.Y, room.Y), self.MinSize.Y)
+            self.Root.Size = UDim2.fromOffset(width, height)
+            scale = math.min(scale, (bounds.X - 24) / width, (bounds.Y - 24) / height)
+        else
+            local size = self.Minimized and self._restoreSize or self.Root.Size
+            scale *= math.clamp(viewport.Y / 1080, 0.5, 2)
+            scale = math.min(scale, (bounds.X - 24) / size.X.Offset, (bounds.Y - 24) / size.Y.Offset)
+        end
     end
     self:_applyScale(math.clamp(scale, 0.35, 3))
 end
@@ -4436,7 +4570,7 @@ function Window:_applyScale(scale)
     self.UIScale.Scale = scale
     Layer.SetScale(scale)
     for _, panel in self.Panels do
-        if not panel.Def.Hud then panel.UIScale.Scale = scale end
+        panel:_applyScale()
     end
 end
 
@@ -5104,33 +5238,66 @@ local Layer = import("Components/Layer")
 local UIS = Services.UserInputService
 local Drag = {}
 
--- follows the press that started it (that touch, or the mouse) until it ends
-function Drag.Follow(input, onMove, onEnd)
+-- follows the press that started it (that touch, or the mouse) until it ends or is cancelled;
+-- owner (optional): the dragged gui, its scrolling ancestors hold still while a touch drags it
+function Drag.Follow(input, onMove, onEnd, owner)
     local touch = input.UserInputType == Enum.UserInputType.Touch
     local start = Util.Pointer(input)
     local moved = false
-    local changed, ended
+    local finished = false
+    local connections = {}
+    local locked = {}
 
-    local function stop()
-        if changed then changed:Disconnect() end
-        if ended then ended:Disconnect() end
-        changed, ended = nil, nil
+    -- a scrolling frame would take the touch over and cancel it
+    if touch and owner then
+        local node = owner.Parent
+        while node and not node:IsA("LayerCollector") do
+            if node:IsA("ScrollingFrame") and node.ScrollingEnabled then
+                node.ScrollingEnabled = false
+                table.insert(locked, node)
+            end
+            node = node.Parent
+        end
     end
 
-    changed = UIS.InputChanged:Connect(function(change)
+    local function stop()
+        for _, connection in connections do connection:Disconnect() end
+        table.clear(connections)
+        for _, frame in locked do frame.ScrollingEnabled = true end
+        table.clear(locked)
+    end
+
+    local function finish()
+        if finished then return end
+        finished = true
+        stop()
+        if onEnd then onEnd(moved) end
+    end
+
+    table.insert(connections, UIS.InputChanged:Connect(function(change)
         local follows = touch and change == input or (not touch and change.UserInputType == Enum.UserInputType.MouseMovement)
         if not follows then return end
         local point = Util.Pointer(touch and change or nil)
         if not moved and (point - start).Magnitude > 3 then moved = true end
         onMove(point, point - start, moved)
-    end)
-    ended = UIS.InputEnded:Connect(function(finish)
-        local ends = touch and finish == input or (not touch and finish.UserInputType == Enum.UserInputType.MouseButton1)
-        if not ends then return end
+    end))
+    table.insert(connections, UIS.InputEnded:Connect(function(finishInput)
+        local ends = touch and finishInput == input or (not touch and finishInput.UserInputType == Enum.UserInputType.MouseButton1)
+        if ends then finish() end
+    end))
+    -- a cancelled touch fires no InputEnded; a drag left running would follow the next touch that reuses
+    -- this input object and drag the element along like a magnet
+    if touch then
+        table.insert(connections, input.Changed:Connect(function(property)
+            if property ~= "UserInputState" then return end
+            local state = input.UserInputState
+            if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then finish() end
+        end))
+    end
+    return function()
+        finished = true
         stop()
-        if onEnd then onEnd(moved) end
-    end)
-    return stop
+    end
 end
 
 -- moves `target` (offset position) while `handle` is dragged; keeps `margin` px on screen
@@ -5752,7 +5919,7 @@ Theme.StyleDefaults = {
     StrokeTransparency   = 0.55,
     Radius               = 12,
     ElementRadius        = 8,
-    Font                 = "Montserrat",
+    Font                 = "Ubuntu",             -- Montserrat sets letter pairs like "as" too tight at small sizes
     AnimSpeed            = 1,
     Gradient             = true,
     GradientRotation     = 45,
@@ -5761,9 +5928,9 @@ Theme.StyleDefaults = {
 
 -- { family, display name }; only families that render differently (GothamSSm draws Montserrat, Arial draws Arimo)
 Theme.Fonts = {
+    { "Ubuntu", "Ubuntu" },
     { "Montserrat", "Montserrat" },
     { "BuilderSans", "Builder Sans" },
-    { "Ubuntu", "Ubuntu" },
     { "Nunito", "Nunito" },
     { "Roboto", "Roboto" },
     { "SourceSansPro", "Source Sans" },
@@ -6097,6 +6264,78 @@ function Util.AutoCanvas(frame, layout, horizontal)
     return update
 end
 
+-- a touch screen is in use: a touch-only device, or the last input was a touch
+function Util.Touch()
+    local UIS = Services.UserInputService
+    if UIS.TouchEnabled and not UIS.MouseEnabled then return true end
+    return UIS:GetLastInputType() == Enum.UserInputType.Touch
+end
+
+-- fn(hovering) on enter and leave; a lifted touch counts as leaving, MouseLeave often never fires on touch
+function Util.Hover(gui, fn)
+    local hovering = false
+    local function set(on)
+        if hovering == on then return end
+        hovering = on
+        fn(on)
+    end
+    local enter = gui.MouseEnter:Connect(function() set(true) end)
+    local leave = gui.MouseLeave:Connect(function() set(false) end)
+    local lift = gui.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then set(false) end
+    end)
+    return {
+        Disconnect = function()
+            enter:Disconnect()
+            leave:Disconnect()
+            lift:Disconnect()
+        end,
+    }
+end
+
+-- touch only: holding still on gui for `time` s calls fn(point); returns the connection and consumed(),
+-- which a click handler calls to skip the click that ends a long press
+function Util.LongPress(gui, fn, time)
+    local presses, fired = 0, false
+    local connection = gui.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.Touch then return end
+        presses += 1
+        fired = false
+        local mine, start = presses, input.Position
+        task.delay(time or 0.5, function()
+            if mine ~= presses or not gui.Parent then return end
+            local state = input.UserInputState
+            if state ~= Enum.UserInputState.Begin and state ~= Enum.UserInputState.Change then return end
+            if (input.Position - start).Magnitude > 10 then return end
+            fired = true
+            fn(Vector2.new(input.Position.X, input.Position.Y))
+        end)
+    end)
+    local function consumed()
+        if not fired then return false end
+        fired = false
+        return true
+    end
+    return connection, consumed
+end
+
+-- resize grip: dots in a corner triangle; drawn without Rotation, which does not render inside clipping frames
+function Util.Grip(props)
+    local grip = Util.New("TextButton", props)
+    local size = grip.Size.X.Offset
+    local step = math.floor(size / 4)
+    local first = size - step * 3 + 1
+    for _, dot in { { 2, 0 }, { 1, 1 }, { 2, 1 }, { 0, 2 }, { 1, 2 }, { 2, 2 } } do
+        Util.New("Frame", {
+            Size = UDim2.fromOffset(2, 2),
+            Position = UDim2.fromOffset(first + dot[1] * step, first + dot[2] * step),
+            Theme = { BackgroundColor3 = "TextMuted" },
+            Parent = grip,
+        })
+    end
+    return grip
+end
+
 -- hover state + press scale for any button; state.Hover / state.Down feed its theme functions
 function Util.Feedback(button, state, refresh)
     state = state or {}
@@ -6104,10 +6343,12 @@ function Util.Feedback(button, state, refresh)
     local function paint()
         if refresh then refresh() else Theme.Refresh(button, 0.12) end
     end
-    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
-    button.MouseLeave:Connect(function()
-        state.Hover, state.Down = false, false
-        Util.Tween(scale, 0.1, { Scale = 1 })
+    Util.Hover(button, function(on)
+        state.Hover = on
+        if not on then
+            state.Down = false
+            Util.Tween(scale, 0.1, { Scale = 1 })
+        end
         paint()
     end)
     button.MouseButton1Down:Connect(function()
@@ -6149,6 +6390,17 @@ function Util.Format(value, step)
 end
 
 -- 1.5k / 2m / 3b
+-- 1500 -> 1.5k, 2000000 -> 2m: the suffixes ParseNumber reads back
+function Util.Compact(number)
+    local size = math.abs(number)
+    for _, unit in { { 1e9, "b" }, { 1e6, "m" }, { 1e3, "k" } } do
+        if size >= unit[1] then
+            return (string.format("%.2f", number / unit[1]):gsub("%.?0+$", "")) .. unit[2]
+        end
+    end
+    return tostring(number)
+end
+
 function Util.ParseNumber(text)
     if type(text) ~= "string" then return tonumber(text) end
     text = text:gsub("[%s,]", "")
@@ -6492,8 +6744,7 @@ function Button.Draw(parent, spec, getState, onPress)
         Parent = button,
     })
     local scale = Util.New("UIScale", { Parent = button })
-    button.MouseEnter:Connect(function() hover = true; Theme.Refresh(button, 0.12) end)
-    button.MouseLeave:Connect(function() hover = false; Theme.Refresh(button, 0.12) end)
+    Util.Hover(button, function(on) hover = on; Theme.Refresh(button, 0.12) end)
     button.MouseButton1Down:Connect(function() Util.Tween(scale, 0.08, { Scale = 0.97 }) end)
     button.MouseButton1Up:Connect(function() Util.Tween(scale, 0.12, { Scale = 1 }) end)
     button.MouseButton1Click:Connect(onPress)
@@ -6639,9 +6890,14 @@ __modules["Elements/Code"] = function(...)
 local import = ...
 local Base = import("Elements/Base")
 local Util = import("Core/Util")
+local Theme = import("Core/Theme")
+local Tooltip = import("Components/Tooltip")
 
--- monospace block with a copy button; def: Title, Code, OnCopy()
+-- monospace block: a short preview, a click opens the whole text in a scrolling dialog
+-- def: Title, Code, Lines (preview lines, default 6), Editable, OnSave(text) -> ok, message, OnCopy()
 local Code = Base.Class("Code")
+
+local MONO = "rbxasset://fonts/families/RobotoMono.json"
 
 function Code.new(container, def)
     local self = setmetatable({}, Code)
@@ -6657,55 +6913,150 @@ function Code:Set(code)
     self.Changed:Fire(self.Value)
 end
 
+local function copy(text)
+    if type(setclipboard) ~= "function" then return false end
+    return (pcall(setclipboard, text))
+end
+
+-- the whole text in a dialog; Editable: a Save button runs OnSave first, a false keeps the dialog open
+function Code:Open()
+    local editable = self.Def.Editable == true and not self.Locked
+    local buttons = {
+        { Title = "Copy", Style = "Secondary", Callback = function(text)
+            copy(text)
+            Util.Safe(self.Def.OnCopy)
+            return false
+        end },
+    }
+    if editable then
+        table.insert(buttons, { Title = "Cancel", Style = "Secondary" })
+        table.insert(buttons, { Title = "Save", Style = "Primary", Callback = function(text, dialog)
+            if self.Def.OnSave then
+                local ok, valid, message = pcall(self.Def.OnSave, text)
+                if not ok then
+                    dialog:SetError(tostring(valid))
+                    return false
+                end
+                if valid == false then
+                    dialog:SetError(message or "Not saved.")
+                    return false
+                end
+            end
+            self:Set(text)
+            return true
+        end })
+    else
+        table.insert(buttons, { Title = "Close", Style = "Primary" })
+    end
+    -- "<card> · <title>": the dialog covers the card it came from
+    local owner = self.Module and self.Module.Title
+    local title = self.Title ~= "" and self.Title or "Code"
+    if owner and owner ~= "" and owner ~= title then title = owner .. " · " .. title end
+    return self.Window:Dialog({
+        Title = title,
+        Icon = editable and "pencil" or "file-code",
+        Width = 480,
+        Input = { Default = self.Value, Multiline = true, Height = 300, Monospace = true, ReadOnly = not editable },
+        Buttons = buttons,
+    })
+end
+
 function Code:Render(parent, maid)
-    local box = maid:Give(Util.New("Frame", {
+    local lines = self.Def.Lines or 6
+    local box = maid:Give(Util.New("TextButton", {
         Name = "Code",
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
+        ClipsDescendants = true,
         Visible = self.Visible,
         Theme = { BackgroundColor3 = "Background", BackgroundTransparency = function() return 0.2 end },
         Parent = parent,
     }))
     Util.Corner(6, box)
-    Util.Stroke(box)
-    local head = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 24), Parent = box })
+    local stroke = Util.Stroke(box)
+    Util.List(box, 2)
+    Util.Padding(box, 0, 10, 10, 10)
+    local head = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 24), LayoutOrder = 1, Parent = box })
     Util.Label({
         Text = self.Title,
         TextSize = 11,
         Color = "TextMuted",
         Weight = Enum.FontWeight.SemiBold,
-        Size = UDim2.new(1, -40, 1, 0),
-        Position = UDim2.fromOffset(10, 0),
+        Size = UDim2.new(1, -50, 1, 0),
+        TextTruncate = Enum.TextTruncate.AtEnd,
         Parent = head,
     })
-    local copy = Util.New("ImageButton", {
+    local actions = Util.New("Frame", {
+        BackgroundTransparency = 1,
         AnchorPoint = Vector2.new(1, 0.5),
-        Position = UDim2.new(1, -8, 0.5, 0),
-        Size = UDim2.fromOffset(13, 13),
-        Image = Util.IconId("copy"),
-        Theme = { ImageColor3 = "TextMuted" },
+        Position = UDim2.new(1, 0, 0.5, 0),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.fromOffset(0, 14),
         Parent = head,
     })
+    Util.List(actions, 8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
+    local function action(icon, order, tip)
+        local button = Util.New("ImageButton", {
+            Size = UDim2.fromOffset(13, 13),
+            Image = Util.IconId(icon),
+            LayoutOrder = order,
+            Theme = { ImageColor3 = "TextMuted" },
+            Parent = actions,
+        })
+        maid:Give(Tooltip.Attach(button, tip))
+        return button
+    end
+    local open = action(self.Def.Editable and "pencil" or "maximize-2", 1, function()
+        return self.Def.Editable and "Edit" or "View all"
+    end)
+    local copyButton = action("copy", 2, "Copy")
+
+    -- the preview: whole lines only, cut at the right edge instead of wrapped
     local text = Util.New("TextLabel", {
-        Size = UDim2.new(1, -20, 0, 0),
-        Position = UDim2.fromOffset(10, 24),
+        Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Text = self.Value,
         TextSize = 11,
-        TextWrapped = true,
+        TextWrapped = false,
+        TextXAlignment = Enum.TextXAlignment.Left,
         TextYAlignment = Enum.TextYAlignment.Top,
-        FontFace = Font.new("rbxasset://fonts/families/RobotoMono.json"),
+        FontFace = Font.new(MONO),
+        LayoutOrder = 2,
         Theme = { TextColor3 = "TextDim" },
         Parent = box,
     })
-    Util.Padding(text, 0, 0, 10, 0)
-    copy.MouseButton1Click:Connect(function()
-        if type(setclipboard) == "function" then pcall(setclipboard, self.Value) end
-        copy.Image = Util.IconId("check")
-        task.delay(1.2, function() if copy.Parent then copy.Image = Util.IconId("copy") end end)
+    local more = Util.Label({
+        TextSize = 10,
+        Color = "TextMuted",
+        Weight = Enum.FontWeight.Medium,
+        Size = UDim2.new(1, 0, 0, 16),
+        TextYAlignment = Enum.TextYAlignment.Bottom,
+        LayoutOrder = 3,
+        Parent = box,
+    })
+
+    local function paint()
+        local all = string.split(self.Value, "\n")
+        local shown = math.min(#all, lines)
+        text.Text = table.concat(all, "\n", 1, shown)
+        local hidden = #all - shown
+        more.Visible = hidden > 0
+        more.Text = hidden > 0 and ("+ " .. hidden .. (hidden == 1 and " more line" or " more lines")) or ""
+    end
+    paint()
+    maid:Give(self.Changed:Connect(paint))
+
+    maid:Give(Util.Hover(box, function(on)
+        Theme.Bind(stroke, { Color = on and "Accent" or "Stroke" })
+    end))
+    maid:Give(Tooltip.Attach(box, function() return self.Def.Editable and "Click to edit" or "Click to view all" end))
+    box.MouseButton1Click:Connect(function() self:Open() end)
+    open.MouseButton1Click:Connect(function() self:Open() end)
+    copyButton.MouseButton1Click:Connect(function()
+        copy(self.Value)
+        copyButton.Image = Util.IconId("check")
+        task.delay(1.2, function() if copyButton.Parent then copyButton.Image = Util.IconId("copy") end end)
         Util.Safe(self.Def.OnCopy)
     end)
-    maid:Give(self.Changed:Connect(function() text.Text = self.Value end))
     return box
 end
 
@@ -6940,7 +7291,7 @@ function ColorPicker:_open(anchor)
                 button.InputBegan:Connect(function(input)
                     if not Util.IsPress(input) or self.Locked then return end
                     onPoint(Util.Pointer(input))
-                    Drag.Follow(input, function(point) onPoint(point) end)
+                    Drag.Follow(input, function(point) onPoint(point) end, nil, button)
                 end)
             end
             local function relative(gui, point)
@@ -7306,13 +7657,13 @@ function Dropdown:_open(field, chevron)
     local search = self.Def.Search
     if search == nil then search = #self.Options > 8 end
     local maxVisible = self.Def.MaxVisible or 7
-    Util.Tween(chevron, 0.18, { Rotation = 180 })
+    chevron.Image = Util.IconId("chevron-up")
 
     Popup.Open({
         Anchor = field,
         MinWidth = 170,
         Padding = 5,
-        OnClose = function() Util.Tween(chevron, 0.18, { Rotation = 0 }) end,
+        OnClose = function() chevron.Image = Util.IconId("chevron-down") end,
         Build = function(frame, popup)
             Util.List(frame, 4)
             local query = ""
@@ -7468,8 +7819,7 @@ function Dropdown:_open(field, chevron)
                             Parent = button,
                         })
                     end
-                    button.MouseEnter:Connect(function() entry.Hover = true; Theme.Refresh(button, 0.08) end)
-                    button.MouseLeave:Connect(function() entry.Hover = false; Theme.Refresh(button, 0.08) end)
+                    Util.Hover(button, function(on) entry.Hover = on; Theme.Refresh(button, 0.08) end)
                     button.MouseButton1Click:Connect(function()
                         if self.Locked then return end
                         if self.Multi then
@@ -7509,7 +7859,8 @@ function Dropdown:_open(field, chevron)
                         end
                     end
                 end)
-                task.defer(function() if box.Parent then box:CaptureFocus() end end)
+                -- touch: no keyboard popping up on every open, a tap on the field focuses it
+                if not Util.Touch() then task.defer(function() if box.Parent then box:CaptureFocus() end end) end
             end
         end,
     })
@@ -7646,12 +7997,12 @@ function Group:Render(parent, maid)
         Parent = frame,
     })
     Util.Corner(5, head)
-    local chevron = Util.Icon("chevron-right", {
+    -- an image swap: Rotation does not render inside the clipping columns
+    local chevron = Util.Icon(self.Opened and "chevron-down" or "chevron-right", {
         Size = UDim2.fromOffset(13, 13),
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.new(0, 9, 0.5, 0),
         Color = "TextMuted",
-        Rotation = self.Opened and 90 or 0,
         Parent = head,
     })
     local x = 20
@@ -7708,13 +8059,12 @@ function Group:Render(parent, maid)
         body.Visible = self.Opened
         count.Text = tostring(#self.Children)
         count.Visible = not self.Opened
-        Util.Tween(chevron, animate and 0.18 or 0, { Rotation = self.Opened and 90 or 0 })
+        chevron.Image = Util.IconId(self.Opened and "chevron-down" or "chevron-right")
         frame.Visible = self.Visible
     end
     paint(false)
     maid:Give(self.StateChanged:Connect(function() paint(true) end))
-    head.MouseEnter:Connect(function() hover = true; Theme.Refresh(head, 0.1) end)
-    head.MouseLeave:Connect(function() hover = false; Theme.Refresh(head, 0.1) end)
+    Util.Hover(head, function(on) hover = on; Theme.Refresh(head, 0.1) end)
     head.MouseButton1Click:Connect(function() self:SetOpened(not self.Opened) end)
     return frame
 end
@@ -7781,6 +8131,7 @@ local Base = import("Elements/Base")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Row = import("Components/Row")
+local Tooltip = import("Components/Tooltip")
 
 -- def: Title, Default, Placeholder, Numeric, Min, Max, Step, MaxLength, Finished (default true: commit on enter / focus lost),
 --      Validate(text) -> ok, message, Icon, Multiline, Height, ClearOnFocus, Callback(value)
@@ -7831,7 +8182,8 @@ function Input:Submit(text)
             return false
         end
         if (self.Def.Min and number < self.Def.Min) or (self.Def.Max and number > self.Def.Max) then
-            self.Error = string.format("Allowed: %s – %s", tostring(self.Def.Min or "-∞"), tostring(self.Def.Max or "∞"))
+            local min, max = self.Def.Min, self.Def.Max
+            self.Error = string.format("Allowed: %s – %s", min and Util.Compact(min) or "-∞", max and Util.Compact(max) or "∞")
             self.StateChanged:Fire("Error")
             return false
         end
@@ -7852,6 +8204,49 @@ end
 function Input:Text()
     if self.Numeric then return Util.Format(self.Value, self.Def.Step or (math.floor(self.Value) == self.Value and 1 or 0.01)) end
     return self.Value
+end
+
+-- a compact box inside another element's row (Toggle Field); a rejected entry flashes the message and
+-- the last valid value comes back
+function Input:RenderInline(parent, maid, props)
+    props = props or {}
+    local field, api = Row.Field(parent, { Size = UDim2.fromOffset(props.Width or 96, 22), LayoutOrder = props.LayoutOrder or 0, Radius = 5 })
+    local box = Util.New("TextBox", {
+        Size = UDim2.new(1, -12, 1, 0),
+        Position = UDim2.fromOffset(6, 0),
+        Text = self:Text(),
+        PlaceholderText = self.Def.Placeholder or "",
+        TextSize = 11,
+        ClearTextOnFocus = self.Def.ClearOnFocus == true,
+        ClipsDescendants = true,
+        Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
+        Parent = field,
+    })
+    local function paint()
+        if not box:IsFocused() then box.Text = self:Text() end
+        api.SetStroke(self.Error and "Danger" or nil)
+    end
+    paint()
+    maid:Give(self.Changed:Connect(paint))
+    maid:Give(self.StateChanged:Connect(function(what) if what == "Error" or what == "Locked" then paint() end end))
+    if self.Tooltip then maid:Give(Tooltip.Attach(field, function() return self.Error or self.Tooltip end)) end
+    box.Focused:Connect(function() api.SetFocused(true) end)
+    box.FocusLost:Connect(function()
+        api.SetFocused(false)
+        if self.Locked then box.Text = self:Text(); return end
+        if not self:Submit(box.Text) then
+            local message = self.Error
+            Tooltip.Show(message)
+            task.delay(2, function()
+                if self.Error ~= message then return end
+                self.Error = nil
+                self.StateChanged:Fire("Error")
+            end)
+        end
+        box.Text = self:Text()
+        paint()
+    end)
+    return field
 end
 
 function Input:Render(parent, maid)
@@ -8023,8 +8418,10 @@ __modules["Elements/Label"] = function(...)
 local import = ...
 local Base = import("Elements/Base")
 local Util = import("Core/Util")
+local Theme = import("Core/Theme")
 
--- def: Text, Value (right aligned text), Color (token), Size, RichText; Set(text), SetValue(text)
+-- def: Text, Value (right aligned text), Color (token), ValueColor (token | Color3), Size, RichText;
+--      Set(text), SetValue(text), SetValueColor(token | Color3 | nil)
 local Label = Base.Class("Label")
 
 function Label.new(container, def)
@@ -8032,8 +8429,15 @@ function Label.new(container, def)
     Base.Init(self, container, def)
     self.Title = def.Text or def.Title or ""
     self.Value = def.Value
+    self.ValueColor = def.ValueColor
     self.NoSave = true
     return self
+end
+
+function Label:SetValueColor(color)
+    if color == self.ValueColor then return end
+    self.ValueColor = color
+    self.StateChanged:Fire("ValueColor")
 end
 
 function Label:Set(text)
@@ -8066,7 +8470,11 @@ function Label:Render(parent, maid)
     })
     local value = Util.Label({
         TextSize = self.Def.Size or 12,
-        Color = "Text",
+        Theme = { TextColor3 = function(t)
+            local color = self.ValueColor
+            if typeof(color) == "Color3" then return color end
+            return t[color or "Text"] or t.Text
+        end },
         Weight = Enum.FontWeight.SemiBold,
         TextXAlignment = Enum.TextXAlignment.Right,
         AnchorPoint = Vector2.new(1, 0),
@@ -8081,6 +8489,7 @@ function Label:Render(parent, maid)
         value.Visible = self.Value ~= nil
         text.Size = UDim2.new(1, self.Value and -(value.AbsoluteSize.X + 10) or 0, 0, 0)
         frame.Visible = self.Visible
+        Theme.Refresh(value)
     end
     paint()
     maid:Give(self.Changed:Connect(paint))
@@ -8512,7 +8921,7 @@ function RangeSlider:Render(parent, maid)
             dragging = nil
             Util.Tween(scale, 0.12, { Scale = 0.85 })
             if not live then self:_notify() end
-        end)
+        end, track.Bar)
     end)
     if track.Minus then
         track.Minus.MouseButton1Click:Connect(function()
@@ -8593,8 +9002,7 @@ function Segmented:Render(parent, maid)
         })
         Util.Corner(4, chip.Button)
         Util.New("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill, Parent = chip.Button })
-        chip.Button.MouseEnter:Connect(function() chip.hover = true; Theme.Refresh(chip.Button, 0.1) end)
-        chip.Button.MouseLeave:Connect(function() chip.hover = false; Theme.Refresh(chip.Button, 0.1) end)
+        Util.Hover(chip.Button, function(on) chip.hover = on; Theme.Refresh(chip.Button, 0.1) end)
         chip.Button.MouseButton1Click:Connect(function()
             if not self.Locked then self:Set(option) end
         end)
@@ -8674,8 +9082,7 @@ local function stepper(parent, icon, order)
         Theme = { ImageColor3 = "TextMuted" },
         Parent = parent,
     })
-    button.MouseEnter:Connect(function() Theme.Bind(button, { ImageColor3 = "Text" }) end)
-    button.MouseLeave:Connect(function() Theme.Bind(button, { ImageColor3 = "TextMuted" }) end)
+    Util.Hover(button, function(on) Theme.Bind(button, { ImageColor3 = on and "Text" or "TextMuted" }) end)
     return button
 end
 
@@ -8858,10 +9265,9 @@ function Slider:Render(parent, maid)
             dragging = false
             Util.Tween(knobScale, 0.12, { Scale = 0.85 })
             if not live then self:_notify() end
-        end)
+        end, track.Bar)
     end)
-    track.Bar.MouseEnter:Connect(function() if not dragging then Util.Tween(knobScale, 0.1, { Scale = 1 }) end end)
-    track.Bar.MouseLeave:Connect(function() if not dragging then Util.Tween(knobScale, 0.1, { Scale = 0.85 }) end end)
+    Util.Hover(track.Bar, function(on) if not dragging then Util.Tween(knobScale, 0.1, { Scale = on and 1 or 0.85 }) end end)
     if track.Minus then
         track.Minus.MouseButton1Click:Connect(function() if not self.Locked then self:Set(self.Value - self.Step) end end)
         track.Plus.MouseButton1Click:Connect(function() if not self.Locked then self:Set(self.Value + self.Step) end end)
@@ -8909,8 +9315,10 @@ local Base = import("Elements/Base")
 local Row = import("Components/Row")
 local Widgets = import("Components/Widgets")
 local Binding = import("Core/Binding")
+local Input = import("Elements/Input")
 
--- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }), Callback(value)
+-- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }),
+--      Field (a value box in the same row, set while off too: Input options plus Width), Listed, Callback(value)
 local Toggle = Base.Class("Toggle")
 
 function Toggle.new(container, def)
@@ -8937,7 +9345,23 @@ function Toggle.new(container, def)
         self.Binding.Changed:Connect(function() self.Window:_touch(true) end)
         self.Window:_trackBind(self)
     end
+    if def.Field then
+        -- its own element model: own Flag, callback, validation; toggle.Field:Get() reads it
+        local spec = table.clone(def.Field)
+        spec.Title = spec.Title or self.Title
+        self.Field = Input.new(container, spec)
+    end
     return self
+end
+
+function Toggle:Reset()
+    Base.Reset(self)
+    if self.Field then self.Field:Reset() end
+end
+
+function Toggle:Destroy()
+    if self.Field then self.Field:Destroy() end
+    Base.Destroy(self)
 end
 
 function Toggle:Set(value, silent)
@@ -8966,6 +9390,9 @@ end
 
 function Toggle:Render(parent, maid)
     local row = Row.new(self, parent, maid, { Click = true })
+    if self.Field then
+        self.Field:RenderInline(row.Right, maid, { Width = self.Def.Field.Width, LayoutOrder = 0 })
+    end
     if self.Binding then
         local _, connection = Widgets.KeyPill(row.Right, self.Binding, { LayoutOrder = 1 })
         maid:Give(connection)
@@ -9213,5 +9640,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.2.2"
+Library.Version = "1.3.0"
 return Library

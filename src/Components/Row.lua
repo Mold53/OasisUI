@@ -93,13 +93,17 @@ function Row.new(element, parent, maid, options)
 
     local info
     if element.Tooltip then
-        info = Util.Icon("info", {
+        -- a button: a tap shows the text on touch and does not reach the row's own click
+        info = Util.New("ImageButton", {
             Size = UDim2.fromOffset(11, 11),
-            Color = "TextMuted",
+            Image = Util.IconId("info"),
+            ScaleType = Enum.ScaleType.Fit,
             LayoutOrder = 2,
+            Theme = { ImageColor3 = "TextMuted" },
             Parent = titleLine,
         })
         maid:Give(Tooltip.Attach(info, function() return element.Tooltip end))
+        info.MouseButton1Click:Connect(function() Tooltip.Show(element.Tooltip) end)
     end
 
     local desc = Util.Label({
@@ -159,6 +163,7 @@ function Row.new(element, parent, maid, options)
     })
     Util.Corner(6, overlay)
     maid:Give(Tooltip.Attach(overlay, function() return element.LockReason or "Locked" end))
+    overlay.MouseButton1Click:Connect(function() Tooltip.Show(element.LockReason or "Locked") end)
 
     local function sync(what)
         if what == nil or what == "Title" then title.Text = element.Title end
@@ -198,8 +203,7 @@ function Row.Field(parent, props)
     })
     Util.Corner(props.Radius or 6, field)
     local stroke = Util.Stroke(field, function(t) return focused and t.Accent or t.Stroke end, function(t) return focused and 0.2 or t.StrokeTransparency + 0.1 end)
-    field.MouseEnter:Connect(function() hover = true; Theme.Refresh(field, 0.12) end)
-    field.MouseLeave:Connect(function() hover = false; Theme.Refresh(field, 0.12) end)
+    Util.Hover(field, function(on) hover = on; Theme.Refresh(field, 0.12) end)
     local api = {}
     function api.SetFocused(on)
         focused = on

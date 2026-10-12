@@ -185,13 +185,13 @@ function Dropdown:_open(field, chevron)
     local search = self.Def.Search
     if search == nil then search = #self.Options > 8 end
     local maxVisible = self.Def.MaxVisible or 7
-    Util.Tween(chevron, 0.18, { Rotation = 180 })
+    chevron.Image = Util.IconId("chevron-up")
 
     Popup.Open({
         Anchor = field,
         MinWidth = 170,
         Padding = 5,
-        OnClose = function() Util.Tween(chevron, 0.18, { Rotation = 0 }) end,
+        OnClose = function() chevron.Image = Util.IconId("chevron-down") end,
         Build = function(frame, popup)
             Util.List(frame, 4)
             local query = ""
@@ -347,8 +347,7 @@ function Dropdown:_open(field, chevron)
                             Parent = button,
                         })
                     end
-                    button.MouseEnter:Connect(function() entry.Hover = true; Theme.Refresh(button, 0.08) end)
-                    button.MouseLeave:Connect(function() entry.Hover = false; Theme.Refresh(button, 0.08) end)
+                    Util.Hover(button, function(on) entry.Hover = on; Theme.Refresh(button, 0.08) end)
                     button.MouseButton1Click:Connect(function()
                         if self.Locked then return end
                         if self.Multi then
@@ -388,7 +387,8 @@ function Dropdown:_open(field, chevron)
                         end
                     end
                 end)
-                task.defer(function() if box.Parent then box:CaptureFocus() end end)
+                -- touch: no keyboard popping up on every open, a tap on the field focuses it
+                if not Util.Touch() then task.defer(function() if box.Parent then box:CaptureFocus() end end) end
             end
         end,
     })

@@ -166,6 +166,78 @@ function Util.AutoCanvas(frame, layout, horizontal)
     return update
 end
 
+-- a touch screen is in use: a touch-only device, or the last input was a touch
+function Util.Touch()
+    local UIS = Services.UserInputService
+    if UIS.TouchEnabled and not UIS.MouseEnabled then return true end
+    return UIS:GetLastInputType() == Enum.UserInputType.Touch
+end
+
+-- fn(hovering) on enter and leave; a lifted touch counts as leaving, MouseLeave often never fires on touch
+function Util.Hover(gui, fn)
+    local hovering = false
+    local function set(on)
+        if hovering == on then return end
+        hovering = on
+        fn(on)
+    end
+    local enter = gui.MouseEnter:Connect(function() set(true) end)
+    local leave = gui.MouseLeave:Connect(function() set(false) end)
+    local lift = gui.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.Touch then set(false) end
+    end)
+    return {
+        Disconnect = function()
+            enter:Disconnect()
+            leave:Disconnect()
+            lift:Disconnect()
+        end,
+    }
+end
+
+-- touch only: holding still on gui for `time` s calls fn(point); returns the connection and consumed(),
+-- which a click handler calls to skip the click that ends a long press
+function Util.LongPress(gui, fn, time)
+    local presses, fired = 0, false
+    local connection = gui.InputBegan:Connect(function(input)
+        if input.UserInputType ~= Enum.UserInputType.Touch then return end
+        presses += 1
+        fired = false
+        local mine, start = presses, input.Position
+        task.delay(time or 0.5, function()
+            if mine ~= presses or not gui.Parent then return end
+            local state = input.UserInputState
+            if state ~= Enum.UserInputState.Begin and state ~= Enum.UserInputState.Change then return end
+            if (input.Position - start).Magnitude > 10 then return end
+            fired = true
+            fn(Vector2.new(input.Position.X, input.Position.Y))
+        end)
+    end)
+    local function consumed()
+        if not fired then return false end
+        fired = false
+        return true
+    end
+    return connection, consumed
+end
+
+-- resize grip: dots in a corner triangle; drawn without Rotation, which does not render inside clipping frames
+function Util.Grip(props)
+    local grip = Util.New("TextButton", props)
+    local size = grip.Size.X.Offset
+    local step = math.floor(size / 4)
+    local first = size - step * 3 + 1
+    for _, dot in { { 2, 0 }, { 1, 1 }, { 2, 1 }, { 0, 2 }, { 1, 2 }, { 2, 2 } } do
+        Util.New("Frame", {
+            Size = UDim2.fromOffset(2, 2),
+            Position = UDim2.fromOffset(first + dot[1] * step, first + dot[2] * step),
+            Theme = { BackgroundColor3 = "TextMuted" },
+            Parent = grip,
+        })
+    end
+    return grip
+end
+
 -- hover state + press scale for any button; state.Hover / state.Down feed its theme functions
 function Util.Feedback(button, state, refresh)
     state = state or {}
@@ -173,10 +245,12 @@ function Util.Feedback(button, state, refresh)
     local function paint()
         if refresh then refresh() else Theme.Refresh(button, 0.12) end
     end
-    button.MouseEnter:Connect(function() state.Hover = true; paint() end)
-    button.MouseLeave:Connect(function()
-        state.Hover, state.Down = false, false
-        Util.Tween(scale, 0.1, { Scale = 1 })
+    Util.Hover(button, function(on)
+        state.Hover = on
+        if not on then
+            state.Down = false
+            Util.Tween(scale, 0.1, { Scale = 1 })
+        end
         paint()
     end)
     button.MouseButton1Down:Connect(function()
@@ -218,6 +292,17 @@ function Util.Format(value, step)
 end
 
 -- 1.5k / 2m / 3b
+-- 1500 -> 1.5k, 2000000 -> 2m: the suffixes ParseNumber reads back
+function Util.Compact(number)
+    local size = math.abs(number)
+    for _, unit in { { 1e9, "b" }, { 1e6, "m" }, { 1e3, "k" } } do
+        if size >= unit[1] then
+            return (string.format("%.2f", number / unit[1]):gsub("%.?0+$", "")) .. unit[2]
+        end
+    end
+    return tostring(number)
+end
+
 function Util.ParseNumber(text)
     if type(text) ~= "string" then return tonumber(text) end
     text = text:gsub("[%s,]", "")

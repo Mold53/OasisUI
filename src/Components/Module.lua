@@ -309,7 +309,8 @@ function Module:Render(parent, maid, view)
         LayoutOrder = 1,
         Theme = {
             ImageColor3 = function(t) return self.Favorite and t.Warning or t.TextMuted end,
-            ImageTransparency = function() return (self.Favorite and 0) or (hover and 0.25) or 1 end,
+            -- touch has no hover: the star stays faintly visible
+            ImageTransparency = function() return (self.Favorite and 0) or (hover and 0.25) or (Util.Touch() and 0.55) or 1 end,
         },
         Parent = right,
     })
@@ -322,7 +323,7 @@ function Module:Render(parent, maid, view)
             LayoutOrder = 2,
             Theme = {
                 ImageColor3 = "TextMuted",
-                ImageTransparency = function() return hover and 0.25 or 1 end,
+                ImageTransparency = function() return (hover and 0.25) or (Util.Touch() and 0.55) or 1 end,
             },
             Parent = right,
         })
@@ -412,7 +413,8 @@ function Module:Render(parent, maid, view)
         AutomaticSize = Enum.AutomaticSize.Y,
         Parent = body,
     })
-    Util.Padding(options, self.Toggleable and 2 or 0, 12, 12, 12)
+    -- 2 px on top: the body clips, a first control's outline would lose its top edge
+    Util.Padding(options, 2, 12, 12, 12)
     Util.List(options, 9)
     self:_mountChildren(options, maid)
 
@@ -424,7 +426,11 @@ function Module:Render(parent, maid, view)
         Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.45 end },
         Parent = body,
     })
-    maid:Give(Tooltip.Attach(lockShade, "Locked. Right-click the header to unlock."))
+    local function lockText()
+        return Util.Touch() and "Locked. Hold the header to unlock." or "Locked. Right-click the header to unlock."
+    end
+    maid:Give(Tooltip.Attach(lockShade, lockText))
+    lockShade.MouseButton1Click:Connect(function() Tooltip.Show(lockText()) end)
 
     local animating = 0
     local function height()
@@ -438,18 +444,24 @@ function Module:Render(parent, maid, view)
             local mine = animating
             Util.Tween(body, 0.28, { Size = UDim2.new(1, 0, 0, goal) })
             task.delay(0.3 / math.max(Theme.Current.AnimSpeed or 1, 0.05), function()
-                if mine == animating then animating = 0 end
+                if mine ~= animating then return end
+                animating = 0
+                -- content that resized during the animation (wrapped text, late layouts) is caught up here
+                if self.Expanded and #self.Children > 0 then body.Size = UDim2.new(1, 0, 0, height()) end
             end)
         else
             body.Size = UDim2.new(1, 0, 0, goal)
         end
-        local rotation = self.Expanded and 180 or 0
-        if chevron then Util.Tween(chevron, animate and 0.2 or 0, { Rotation = rotation }) end
+        -- up while open: a click folds it; an image swap, Rotation does not render inside the clipping columns
+        local arrow = Util.IconId(self.Expanded and "chevron-up" or "chevron-down")
+        if chevron then
+            chevron.Image = arrow
+            chevron.Visible = #self.Children > 0
+        end
         if headChevron then
-            Util.Tween(headChevron, animate and 0.2 or 0, { Rotation = rotation })
+            headChevron.Image = arrow
             headChevron.Visible = #self.Children > 0
         end
-        if chevron then chevron.Visible = #self.Children > 0 end
     end
     paintBody(false)
     maid:Give(options:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
@@ -477,18 +489,12 @@ function Module:Render(parent, maid, view)
         Theme.Refresh(stroke, 0.2)
     end))
 
-    card.MouseEnter:Connect(function()
-        hover = true
+    maid:Give(Util.Hover(card, function(on)
+        hover = on
         Theme.Refresh(star, 0.12)
         if grip then Theme.Refresh(grip, 0.12) end
         Theme.Refresh(stroke, 0.12)
-    end)
-    card.MouseLeave:Connect(function()
-        hover = false
-        Theme.Refresh(star, 0.12)
-        if grip then Theme.Refresh(grip, 0.12) end
-        Theme.Refresh(stroke, 0.12)
-    end)
+    end))
 
     star.MouseButton1Click:Connect(function() self:SetFavorite(not self.Favorite) end)
     if grip then
@@ -496,7 +502,11 @@ function Module:Render(parent, maid, view)
             if Util.IsPress(input) then view.Page:BeginDrag(view, input) end
         end)
     end
+    -- touch: a long press opens the menu that right-click opens with a mouse
+    local press, consumed = Util.LongPress(hit, function(point) self:_menu(view, point) end)
+    maid:Give(press)
     hit.MouseButton1Click:Connect(function()
+        if consumed() then return end
         if self.Toggleable then
             if not self.Locked then self:ToggleEnabled() end
         else

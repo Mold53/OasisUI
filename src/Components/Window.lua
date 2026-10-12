@@ -161,7 +161,9 @@ function Window:_touch(binds)
     if self.Overlays and (binds or self.Interface.KeybindList) then self.Overlays:RefreshBinds() end
 end
 
+-- Listed = false keeps a bind out of the keybind list (e.g. a key the game itself uses)
 function Window:_trackBind(owner)
+    if owner.Def and owner.Def.Listed == false then return end
     table.insert(self._binds, owner)
 end
 
@@ -208,6 +210,7 @@ end
 function Window:_build()
     local def = self.Def
     local size = def.Size or UDim2.fromOffset(780, 520)
+    self.DefaultSize = size
     if type(self.Interface.Size) == "table" then size = UDim2.fromOffset(self.Interface.Size[1], self.Interface.Size[2]) end
     self.MinSize = def.MinSize or MIN_SIZE
 
@@ -528,7 +531,7 @@ function Window:_build()
     self:_sidebarDivider(-99)
 
     -- resize grip
-    local grip = Util.New("TextButton", {
+    local grip = Util.Grip({
         Name = "Resize",
         AnchorPoint = Vector2.new(1, 1),
         Position = UDim2.new(1, -3, 1, -3),
@@ -537,16 +540,6 @@ function Window:_build()
         ZIndex = 50,
         Parent = root,
     })
-    for index, length in { 10, 5 } do
-        Util.New("Frame", {
-            AnchorPoint = Vector2.new(0.5, 0.5),
-            Position = UDim2.fromOffset(10 + index * 1.5, 10 + index * 1.5),
-            Size = UDim2.fromOffset(length, 1),
-            Rotation = -45,
-            Theme = { BackgroundColor3 = "TextMuted" },
-            Parent = grip,
-        })
-    end
     self.Grip = grip
     grip.Visible = def.Resizable ~= false
     grip.InputBegan:Connect(function(input)
@@ -747,8 +740,7 @@ function Window:_entry(parent, text, icon, order, onClick)
         badgeText.Text = tostring(value or "")
         entry.BadgeValue = value
     end
-    button.MouseEnter:Connect(function() entry.Hover = true; paint(true) end)
-    button.MouseLeave:Connect(function() entry.Hover = false; paint(true) end)
+    Util.Hover(button, function(on) entry.Hover = on; paint(true) end)
     button.MouseButton1Click:Connect(onClick)
     Tooltip.Attach(button, function() return self.Interface.Compact and text or nil end)
     paint(false)
@@ -780,10 +772,23 @@ function Window:_fitScale()
     local scale = math.clamp(tonumber(self.Interface.Scale) or 1, 0.25, 4)
     if self.Interface.FitScreen ~= false then
         local bounds = Layer.Bounds()
-        local size = self.Minimized and self._restoreSize or self.Root.Size
         local viewport = workspace.CurrentCamera.ViewportSize
-        scale *= math.clamp(viewport.Y / 1080, 0.5, 2)
-        scale = math.min(scale, (bounds.X - 24) / size.X.Offset, (bounds.Y - 24) / size.Y.Offset)
+        if Util.Touch() and not self.Minimized then
+            -- phones: a 1080p-relative scale would shrink the text to a few pixels; the text stays readable
+            -- and the window gives up size instead (down to MinSize), the chosen size is kept for bigger screens
+            scale *= math.clamp(viewport.Y / 450, 0.75, 1.5)
+            local want = type(self.Interface.Size) == "table" and Vector2.new(self.Interface.Size[1], self.Interface.Size[2])
+                or Vector2.new(self.DefaultSize.X.Offset, self.DefaultSize.Y.Offset)
+            local room = (bounds - Vector2.new(24, 24)) / scale
+            local width = math.max(math.min(want.X, room.X), self.MinSize.X)
+            local height = math.max(math.min(want.Y, room.Y), self.MinSize.Y)
+            self.Root.Size = UDim2.fromOffset(width, height)
+            scale = math.min(scale, (bounds.X - 24) / width, (bounds.Y - 24) / height)
+        else
+            local size = self.Minimized and self._restoreSize or self.Root.Size
+            scale *= math.clamp(viewport.Y / 1080, 0.5, 2)
+            scale = math.min(scale, (bounds.X - 24) / size.X.Offset, (bounds.Y - 24) / size.Y.Offset)
+        end
     end
     self:_applyScale(math.clamp(scale, 0.35, 3))
 end
@@ -793,7 +798,7 @@ function Window:_applyScale(scale)
     self.UIScale.Scale = scale
     Layer.SetScale(scale)
     for _, panel in self.Panels do
-        if not panel.Def.Hud then panel.UIScale.Scale = scale end
+        panel:_applyScale()
     end
 end
 

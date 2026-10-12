@@ -202,8 +202,7 @@ function Notification.Notify(options)
 
     if duration ~= math.huge and duration > 0 then
         local hovered = false
-        card.MouseEnter:Connect(function() hovered = true end)
-        card.MouseLeave:Connect(function() hovered = false end)
+        Util.Hover(card, function(on) hovered = on end)
         task.spawn(function()
             local left = duration
             while left > 0 and not closed and wrapper.Parent do
