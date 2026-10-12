@@ -551,15 +551,22 @@ function Window:_build()
     grip.Visible = def.Resizable ~= false
     grip.InputBegan:Connect(function(input)
         if not Util.IsPress(input) or self.Minimized then return end
-        local origin = root.AbsoluteSize / self:GetScale()
+        local scale = self:GetScale()
+        local origin = root.AbsoluteSize / scale
+        local originPosition = root.Position
         Drag.Follow(input, function(_, delta)
-            local scale = self:GetScale()
             local viewport = Layer.Bounds() / scale
             local width = math.clamp(origin.X + delta.X / scale, self.MinSize.X, viewport.X - 20)
             local height = math.clamp(origin.Y + delta.Y / scale, self.MinSize.Y, viewport.Y - 20)
             root.Size = UDim2.fromOffset(width, height)
+            -- the window is centre-anchored: shift it by half the growth so the top-left stays put
+            -- and the grip stays under the pointer
+            root.Position = originPosition + UDim2.fromOffset((width - origin.X) * scale / 2, (height - origin.Y) * scale / 2)
         end, function()
             self.Interface.Size = { math.floor(root.Size.X.Offset), math.floor(root.Size.Y.Offset) }
+            local bounds = Layer.Bounds()
+            local center = root.AbsolutePosition + root.AbsoluteSize / 2
+            self.Interface.Position = { math.floor(center.X - bounds.X / 2), math.floor(center.Y - bounds.Y / 2) }
             self:SaveState()
         end)
     end)

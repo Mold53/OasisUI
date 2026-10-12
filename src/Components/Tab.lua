@@ -97,6 +97,8 @@ function Tab:_enableSubTabs()
         ScrollingDirection = Enum.ScrollingDirection.X,
         Parent = holder,
     })
+    -- room for the selected chip's outline, a scrolling frame clips it otherwise
+    Util.Padding(bar, 0, 2, 0, 2)
     Util.AutoCanvas(bar, Util.List(bar, 4, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center), true)
     self.SubArea = Util.New("Frame", {
         Name = "Area",

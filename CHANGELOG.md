@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-10-12
+
+### Fixed
+
+- Resizing drifted: the window grew around its centre, so the corner ran away from the pointer. The top-left
+  corner now stays put and the grip stays under the pointer at every interface scale.
+- The outline of the first sub-tab chip was cut off on the left.
+- Window blur only made the window more see-through without blurring anything:
+  - The game's own depth of field effects overrode it. They are switched off while Window blur is shown and
+    restored afterwards.
+  - The window only gets more see-through while the blur actually renders.
+  - The graphics check also reads the `DFIntDebugFRMQualityLevelOverride` FFlag that bootstrappers set,
+    since it overrides the Roblox menu.
+  - Settings shows why Window blur cannot render: graphics quality below 8 or that FFlag.
+
 ## [1.2.0] - 2026-10-12
 
 ### Added
@@ -97,6 +112,7 @@ First public release.
 - Settings tab built from the library's own elements.
 - Build tooling: `build/bundle.mjs`, `build/icons.mjs`, `build/harness.sh`, CI and release workflows.
 
+[1.2.1]: https://github.com/Mold53/OasisUI/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Mold53/OasisUI/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Mold53/OasisUI/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/Mold53/OasisUI/releases/tag/v1.0.0
