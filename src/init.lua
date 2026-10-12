@@ -89,6 +89,11 @@ function Library:SetFlag(flag, value)
     if element then element:Set(value) end
 end
 
+-- a bind is waiting for its key: keys pressed now belong to it
+function Library:IsCapturing()
+    return Keybinds.Capturing
+end
+
 function Library:Toggle()
     for _, window in self.Windows do window:Toggle() end
 end

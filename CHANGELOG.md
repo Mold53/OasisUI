@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-10-12
+
+### Added
+
+- `Window:ScreenButton(def)`: on-screen buttons for touch screens. A pill in the hud layer with a title, an
+  icon and an active state (`Active()`, polled); while the menu is hidden a press runs `Press` and its end
+  `Release`, while it is open the buttons are dimmed and can be dragged. Positions are saved per `Id`;
+  `Window:SetScreenButtonStyle(scale, transparency)` sizes all of them.
+- Window option `AutoSave`: the default of Settings > Configs > Auto save.
+- Window option `DefaultConfig`: on the first run (no autoload, no config of that name) the defaults are saved
+  under this name and set as autoload, so changes are kept without opening the config manager.
+- `OasisUI:IsCapturing()`: true while a bind waits for its key.
+
+### Fixed
+
+- Auto save never took effect on a window without the Settings tab (`Settings = false`); it is read when the
+  window is created now.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added

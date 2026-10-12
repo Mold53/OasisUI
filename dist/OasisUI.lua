@@ -1,4 +1,4 @@
--- OasisUI v1.4.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.5.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -3270,6 +3270,182 @@ end
 return Row
 end
 
+__modules["Components/ScreenButton"] = function(...)
+local import = ...
+local Services = import("Core/Services")
+local Util = import("Core/Util")
+local Theme = import("Core/Theme")
+local Drag = import("Core/Drag")
+local Layer = import("Components/Layer")
+
+-- on-screen buttons for touch screens: a pill in the hud layer that stays while the menu is hidden;
+-- menu hidden: a press runs Press, its end runs Release; menu open: dimmed, a drag moves it
+-- def: Id (the saved position is keyed by this), Title, Icon, Active() -> bool (green while true),
+--      Press(), Release(), Visible (default true), Position (UDim2, first placement)
+local ScreenButton = {}
+ScreenButton.__index = ScreenButton
+
+local UIS = Services.UserInputService
+local HEIGHT = 36
+
+-- keeps the pill fully on screen (resolution changes, old saves)
+local function clamp(frame)
+    local bounds, size = Layer.Bounds(), frame.AbsoluteSize
+    local position = frame.AbsolutePosition
+    frame.Position = UDim2.fromOffset(
+        math.clamp(position.X, 0, math.max(0, bounds.X - size.X)),
+        math.clamp(position.Y, 0, math.max(0, bounds.Y - size.Y)))
+end
+
+function ScreenButton.new(window, def)
+    local self = setmetatable({
+        Window = window,
+        Def = def,
+        Id = def.Id or def.Title or "Button",
+        Visible = def.Visible ~= false,
+        Active = false,
+        _held = nil,
+    }, ScreenButton)
+    local interface = window.Interface
+    interface.Buttons = type(interface.Buttons) == "table" and interface.Buttons or {}
+
+    local button = window.Maid:Give(Util.New("TextButton", {
+        Name = "ScreenButton",
+        Size = UDim2.fromOffset(0, HEIGHT),
+        AutomaticSize = Enum.AutomaticSize.X,
+        Visible = false,
+        Theme = {
+            BackgroundColor3 = "Surface",
+            BackgroundTransparency = function()
+                local base = (tonumber(interface.ButtonTransparency) or 15) / 100
+                return window.Visible and math.max(base, 0.45) or base
+            end,
+        },
+        Parent = Layer.Hud,
+    }))
+    Util.Corner(UDim.new(1, 0), button)
+    Util.Padding(button, 0, 14, 0, def.Icon and 10 or 14)
+    Util.List(button, 6, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Center, Enum.VerticalAlignment.Center)
+    self.Stroke = Util.Stroke(button, function(t) return self.Active and t.Success or t.Stroke end, function(t)
+        return self.Active and 0.1 or t.StrokeTransparency
+    end, 1.5)
+    if def.Icon then
+        self.IconLabel = Util.Icon(def.Icon, {
+            Size = UDim2.fromOffset(15, 15),
+            LayoutOrder = 1,
+            Theme = { ImageColor3 = function(t) return self.Active and t.Success or t.TextDim end },
+            Parent = button,
+        })
+    end
+    self.Label = Util.Label({
+        Text = def.Title or "",
+        TextSize = 13,
+        Weight = Enum.FontWeight.SemiBold,
+        AutomaticSize = Enum.AutomaticSize.X,
+        Size = UDim2.fromScale(0, 1),
+        LayoutOrder = 2,
+        Theme = {
+            TextColor3 = function(t) return self.Active and t.Success or t.Text end,
+            TextTransparency = function() return window.Visible and 0.4 or 0 end,
+        },
+        Parent = button,
+    })
+    self.Scale = Util.New("UIScale", { Parent = button })
+    self.Frame = button
+
+    local saved = interface.Buttons[self.Id]
+    if type(saved) == "table" then
+        button.Position = UDim2.fromOffset(tonumber(saved[1]) or 0, tonumber(saved[2]) or 0)
+    else
+        button.Position = def.Position or UDim2.new(1, -140, 0.25, #window.ScreenButtons * (HEIGHT + 8))
+    end
+    window.Maid:Give(workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+        task.defer(function() if button.Parent then clamp(button) end end)
+    end))
+
+    -- menu open: a drag moves it; menu hidden: a press presses
+    window.Maid:Give(Drag.Attach(button, button, {
+        Enabled = function() return window.Visible end,
+        OnEnd = function(moved)
+            if not moved then return end
+            clamp(button)
+            interface.Buttons[self.Id] = { math.floor(button.AbsolutePosition.X), math.floor(button.AbsolutePosition.Y) }
+            button.Position = UDim2.fromOffset(button.AbsolutePosition.X, button.AbsolutePosition.Y)
+            window:SaveState()
+        end,
+    }))
+    window.Maid:Give(button.InputBegan:Connect(function(input)
+        if window.Visible or self._held or not Util.IsPress(input) then return end
+        self._held = input
+        -- a cancelled touch fires no InputEnded
+        local watch
+        watch = input.Changed:Connect(function(property)
+            if property ~= "UserInputState" then return end
+            local state = input.UserInputState
+            if state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+                watch:Disconnect()
+                if self._held == input then self:_release() end
+            end
+        end)
+        Util.Safe(def.Press)
+        self:Refresh()
+    end))
+    window.Maid:Give(UIS.InputEnded:Connect(function(input)
+        if input == self._held then self:_release() end
+    end))
+    self:ApplyStyle()
+    self:SetVisible(self.Visible)
+    return self
+end
+
+function ScreenButton:_release()
+    if not self._held then return end
+    self._held = nil
+    Util.Safe(self.Def.Release)
+    self:Refresh()
+end
+
+-- repaints the active state; the window polls every shown button
+function ScreenButton:Refresh()
+    local active = false
+    if self.Def.Active then
+        local ok, value = pcall(self.Def.Active)
+        active = ok and value and true or false
+    end
+    self.Active = active
+    for _, inst in { self.Frame, self.Stroke, self.Label, self.IconLabel } do Theme.Refresh(inst, 0.12) end
+end
+
+function ScreenButton:ApplyStyle()
+    self.Scale.Scale = (tonumber(self.Window.Interface.ButtonScale) or 100) / 100
+    self:Refresh()
+end
+
+function ScreenButton:SetVisible(visible)
+    self.Visible = visible and true or false
+    if not self.Visible then self:_release() end
+    self.Frame.Visible = self.Visible
+    if self.Visible then
+        self:Refresh()
+        task.defer(function() if self.Frame.Parent then clamp(self.Frame) end end)
+    end
+end
+
+function ScreenButton:SetTitle(text)
+    self.Label.Text = text
+end
+
+function ScreenButton:Destroy()
+    self:_release()
+    self.Frame:Destroy()
+    local list = self.Window.ScreenButtons
+    local index = table.find(list, self)
+    if index then table.remove(list, index) end
+end
+
+return ScreenButton
+end
+
 __modules["Components/Tab"] = function(...)
 local import = ...
 local Util = import("Core/Util")
@@ -3813,6 +3989,7 @@ local Tab = import("Components/Tab")
 local Overlays = import("Components/Overlays")
 local Acrylic = import("Components/Acrylic")
 local Panel = import("Components/Panel")
+local ScreenButton = import("Components/ScreenButton")
 local Menu = import("Components/Menu")
 
 local UIS = Services.UserInputService
@@ -3842,11 +4019,15 @@ local INTERFACE = {
     BindMouse = true,
     BindComboKeys = 3,       -- keys per bind (def.ComboKeys sets the default)
     Tooltips = true,
+    AutoSave = false,        -- configs: changes go into the loaded config (def.AutoSave sets the default)
+    ButtonScale = 100,       -- on-screen buttons, percent
+    ButtonTransparency = 15,
 }
 
 -- def: Title, Subtitle, Icon, Folder, Size, MinSize, Theme, ThemeOverrides, Tags, ToggleKey, Search, Settings,
 --      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
 --      ComboKeys (default keys per bind, 1-4), SearchShortcut (false: no Ctrl+F),
+--      AutoSave (default of Settings > Auto save), DefaultConfig (name: created and set as autoload on the first run),
 --      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
@@ -3856,6 +4037,7 @@ function Window.new(library, def)
         Tabs = {},
         Entries = {},
         Panels = {},
+        ScreenButtons = {},
         _binds = {},
         Visible = true,
         Minimized = false,
@@ -3864,6 +4046,7 @@ function Window.new(library, def)
     self.SidebarWidth = def.SidebarWidth or 164
     self.Config = Config.new(self.Folder)
     self:_loadState()
+    self.Config.AutoSave = self.Interface.AutoSave == true
     self:ApplyBindOptions()
 
     if self.State.Theme then
@@ -3936,6 +4119,7 @@ function Window:_loadState()
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
     if self.Def.ComboKeys then defaults.BindComboKeys = self.Def.ComboKeys end
+    if self.Def.AutoSave ~= nil then defaults.AutoSave = self.Def.AutoSave == true end
     for key, value in defaults do
         if state.Interface[key] == nil then state.Interface[key] = value end
     end
@@ -4670,6 +4854,7 @@ function Window:SetVisible(visible)
     end
     self.Acrylic:SetVisible(visible)
     for _, panel in self.Panels do panel:SetVisible(panel.Visible) end
+    for _, button in self.ScreenButtons do button:Refresh() end
     self.Overlays:UpdateVisibility()
     self.Overlays:RefreshBinds()
 end
@@ -4913,6 +5098,33 @@ function Window:Panel(def)
     return panel
 end
 
+-- on-screen button for touch screens; see Components/ScreenButton
+function Window:ScreenButton(def)
+    local button = ScreenButton.new(self, def or {})
+    table.insert(self.ScreenButtons, button)
+    if not self._buttonBeat then
+        -- active states change outside the menu too (keys, the game)
+        local last = 0
+        self._buttonBeat = self.Maid:Give(Services.RunService.Heartbeat:Connect(function()
+            local now = os.clock()
+            if now - last < 0.1 then return end
+            last = now
+            for _, other in self.ScreenButtons do
+                if other.Visible then other:Refresh() end
+            end
+        end))
+    end
+    return button
+end
+
+-- every on-screen button: scale and background transparency in percent
+function Window:SetScreenButtonStyle(scale, transparency)
+    if scale then self.Interface.ButtonScale = scale end
+    if transparency then self.Interface.ButtonTransparency = transparency end
+    for _, button in self.ScreenButtons do button:ApplyStyle() end
+    self:SaveState()
+end
+
 -- context menu at the mouse (or options.Anchor); items: { Title, Icon, Callback, Checked, Danger, Disabled, Hint } or "-"
 function Window:Menu(items, options)
     options = options or {}
@@ -4939,6 +5151,13 @@ end
 
 function Window:LoadAutoload()
     local name = self.Config:GetAutoload()
+    local first = self.Def.DefaultConfig
+    if not name and first and not self.Config:Exists(first) then
+        -- first run: the defaults become a config that later changes are saved into
+        local ok = self.Config:Save(first)
+        if ok then self.Config:SetAutoload(first) end
+        return ok
+    end
     if not name then return false end
     local ok, err = self.Config:Load(name)
     if ok then
@@ -9765,6 +9984,11 @@ function Library:SetFlag(flag, value)
     if element then element:Set(value) end
 end
 
+-- a bind is waiting for its key: keys pressed now belong to it
+function Library:IsCapturing()
+    return Keybinds.Capturing
+end
+
 function Library:Toggle()
     for _, window in self.Windows do window:Toggle() end
 end
@@ -9792,5 +10016,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.4.0"
+Library.Version = "1.5.0"
 return Library

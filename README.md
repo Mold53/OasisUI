@@ -23,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.4.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.5.0/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.4.0/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.5.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.4.0"`).
+`OasisUI.Version` holds the loaded version (`"1.5.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.4.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.5.0/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -132,6 +132,8 @@ local Window = OasisUI:CreateWindow({
     User = { Name = nil, Subtitle = nil, Avatar = nil, Callback = nil },  -- false hides the profile card
     Settings = true,                      -- built-in Settings tab
     AutoLoad = true,                      -- loads the autoload config after the script finished building
+    AutoSave = false,                     -- default of Settings > Configs > Auto save
+    DefaultConfig = nil,                  -- a name: the first run saves the defaults under it and sets it as autoload
     GuiName = "OasisUI",
 })
 ```
@@ -142,6 +144,7 @@ local Window = OasisUI:CreateWindow({
 | `Window:TabSection(text)` / `Window:Divider()` | caption or line in the sidebar |
 | `Window:SelectTab(tab \| subTab \| index \| title, focusModule?)` / `Window:SelectFavorites()` | |
 | `Window:Panel(def)` | floating panel (below) |
+| `Window:ScreenButton(def)` / `Window:SetScreenButtonStyle(scale, transparency)` | on-screen button for touch screens (below) |
 | `Window:Dialog({ Title, Content, Icon, Width, Input = { Default, Placeholder, Multiline, Height, Monospace, ReadOnly }, Buttons = { { Title, Style, Callback(text, dialog) } } })` | return `false` from a callback to keep it open; `dialog:SetError(text)`; a multiline input scrolls |
 | `Window:Menu(items, { Title, Anchor, Width })` | context menu; items `{ Title, Icon, Callback, Checked, Danger, Disabled, Hint }` or `"-"` |
 | `Window:Notify(options)` | same as `OasisUI:Notify` |
@@ -241,6 +244,26 @@ Panel:Show(); Panel:Hide(); Panel:ToggleVisible(); Panel:SetCollapsed(true); Pan
 Panel:SetScale(1.25); Panel:SetTransparency(0.4); Panel.Closed:Connect(fn)
 ```
 
+## On-screen buttons
+
+For touch screens, where there are no keys: a pill in the hud layer that stays while the menu is hidden.
+
+```lua
+local Button = Window:ScreenButton({
+    Id = "aimbot",                        -- the saved position is keyed by this
+    Title = "Aimbot",
+    Icon = "target",
+    Active = function() return Aimbot:Get() end,   -- green while true, polled 10 times a second
+    Press = function() Aimbot:Set(not Aimbot:Get()) end,
+    Release = nil,                        -- the press that started it ended (Hold behaviour)
+    Visible = true,
+})
+Button:SetVisible(false); Button:SetTitle("…"); Button:Destroy()
+Window:SetScreenButtonStyle(120, 30)      -- every button: scale and background transparency in percent
+```
+
+Menu hidden: a press runs `Press`, its end runs `Release`. Menu open: the buttons are dimmed and a drag moves them.
+
 ## Keybinds
 
 Modules, toggles, buttons and keybind elements own a `Binding`:
@@ -304,10 +327,14 @@ Config:Export()             -- json text; Config:Import(text)
 Only elements with a `Flag` are saved. Unknown flags in a file are ignored, so configs keep working when
 features are added or removed.
 
+With `DefaultConfig = "default"` and `AutoSave = true` on the window, settings persist without the user ever
+touching the config manager: the first run saves the defaults as `default` and sets it as autoload, and every
+later change goes into the loaded config.
+
 ## Library
 
 `OasisUI:Notify({ Title, Content, Type = "Info" | "Success" | "Warning" | "Error", Icon, Duration, Buttons = { { Title, Style, Callback, KeepOpen } } })`,
-`OasisUI:GetFlag(flag)`, `OasisUI:SetFlag(flag, value)`, `OasisUI:AddIcons({ name = "rbxassetid://…" })`,
+`OasisUI:GetFlag(flag)`, `OasisUI:SetFlag(flag, value)`, `OasisUI:IsCapturing()` (a bind is waiting for its key), `OasisUI:AddIcons({ name = "rbxassetid://…" })`,
 `OasisUI:SetTheme(name)`, `OasisUI:SetAccent(color)`, `OasisUI:Toggle()`, `OasisUI:Unload()` (alias `Destroy`),
 `OasisUI:OnUnload(fn)`, `OasisUI.Flags`, `OasisUI.Version`.
 

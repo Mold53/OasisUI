@@ -18,6 +18,7 @@ local Tab = import("Components/Tab")
 local Overlays = import("Components/Overlays")
 local Acrylic = import("Components/Acrylic")
 local Panel = import("Components/Panel")
+local ScreenButton = import("Components/ScreenButton")
 local Menu = import("Components/Menu")
 
 local UIS = Services.UserInputService
@@ -47,11 +48,15 @@ local INTERFACE = {
     BindMouse = true,
     BindComboKeys = 3,       -- keys per bind (def.ComboKeys sets the default)
     Tooltips = true,
+    AutoSave = false,        -- configs: changes go into the loaded config (def.AutoSave sets the default)
+    ButtonScale = 100,       -- on-screen buttons, percent
+    ButtonTransparency = 15,
 }
 
 -- def: Title, Subtitle, Icon, Folder, Size, MinSize, Theme, ThemeOverrides, Tags, ToggleKey, Search, Settings,
 --      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
 --      ComboKeys (default keys per bind, 1-4), SearchShortcut (false: no Ctrl+F),
+--      AutoSave (default of Settings > Auto save), DefaultConfig (name: created and set as autoload on the first run),
 --      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
@@ -61,6 +66,7 @@ function Window.new(library, def)
         Tabs = {},
         Entries = {},
         Panels = {},
+        ScreenButtons = {},
         _binds = {},
         Visible = true,
         Minimized = false,
@@ -69,6 +75,7 @@ function Window.new(library, def)
     self.SidebarWidth = def.SidebarWidth or 164
     self.Config = Config.new(self.Folder)
     self:_loadState()
+    self.Config.AutoSave = self.Interface.AutoSave == true
     self:ApplyBindOptions()
 
     if self.State.Theme then
@@ -141,6 +148,7 @@ function Window:_loadState()
     local defaults = table.clone(INTERFACE)
     if self.Def.ToggleKey then defaults.ToggleKey = Binding.KeyName(self.Def.ToggleKey) end
     if self.Def.ComboKeys then defaults.BindComboKeys = self.Def.ComboKeys end
+    if self.Def.AutoSave ~= nil then defaults.AutoSave = self.Def.AutoSave == true end
     for key, value in defaults do
         if state.Interface[key] == nil then state.Interface[key] = value end
     end
@@ -875,6 +883,7 @@ function Window:SetVisible(visible)
     end
     self.Acrylic:SetVisible(visible)
     for _, panel in self.Panels do panel:SetVisible(panel.Visible) end
+    for _, button in self.ScreenButtons do button:Refresh() end
     self.Overlays:UpdateVisibility()
     self.Overlays:RefreshBinds()
 end
@@ -1118,6 +1127,33 @@ function Window:Panel(def)
     return panel
 end
 
+-- on-screen button for touch screens; see Components/ScreenButton
+function Window:ScreenButton(def)
+    local button = ScreenButton.new(self, def or {})
+    table.insert(self.ScreenButtons, button)
+    if not self._buttonBeat then
+        -- active states change outside the menu too (keys, the game)
+        local last = 0
+        self._buttonBeat = self.Maid:Give(Services.RunService.Heartbeat:Connect(function()
+            local now = os.clock()
+            if now - last < 0.1 then return end
+            last = now
+            for _, other in self.ScreenButtons do
+                if other.Visible then other:Refresh() end
+            end
+        end))
+    end
+    return button
+end
+
+-- every on-screen button: scale and background transparency in percent
+function Window:SetScreenButtonStyle(scale, transparency)
+    if scale then self.Interface.ButtonScale = scale end
+    if transparency then self.Interface.ButtonTransparency = transparency end
+    for _, button in self.ScreenButtons do button:ApplyStyle() end
+    self:SaveState()
+end
+
 -- context menu at the mouse (or options.Anchor); items: { Title, Icon, Callback, Checked, Danger, Disabled, Hint } or "-"
 function Window:Menu(items, options)
     options = options or {}
@@ -1144,6 +1180,13 @@ end
 
 function Window:LoadAutoload()
     local name = self.Config:GetAutoload()
+    local first = self.Def.DefaultConfig
+    if not name and first and not self.Config:Exists(first) then
+        -- first run: the defaults become a config that later changes are saved into
+        local ok = self.Config:Save(first)
+        if ok then self.Config:SetAutoload(first) end
+        return ok
+    end
     if not name then return false end
     local ok, err = self.Config:Load(name)
     if ok then
