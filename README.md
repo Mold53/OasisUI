@@ -23,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.1/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.2/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.2.1/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.2.2/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.2.1"`).
+`OasisUI.Version` holds the loaded version (`"1.2.2"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.1/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.2.2/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })

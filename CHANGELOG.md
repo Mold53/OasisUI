@@ -4,6 +4,14 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-10-12
+
+### Fixed
+
+- The mouse wheel did not scroll any page after starting on a tab with sub-tabs (the first tab, or the tab
+  remembered from the last run). That tab's own page stayed visible on top of every page once its sub-tabs
+  took over, and its empty columns took the mouse wheel. It is hidden now.
+
 ## [1.2.1] - 2026-10-12
 
 ### Fixed
@@ -112,6 +120,7 @@ First public release.
 - Settings tab built from the library's own elements.
 - Build tooling: `build/bundle.mjs`, `build/icons.mjs`, `build/harness.sh`, CI and release workflows.
 
+[1.2.2]: https://github.com/Mold53/OasisUI/compare/v1.2.1...v1.2.2
 [1.2.1]: https://github.com/Mold53/OasisUI/compare/v1.2.0...v1.2.1
 [1.2.0]: https://github.com/Mold53/OasisUI/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/Mold53/OasisUI/compare/v1.0.0...v1.1.0

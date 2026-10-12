@@ -125,6 +125,10 @@ function Tab:_enableSubTabs()
         self.Page.Frame.Parent = self.SubArea
         self.Shared = shared
         self:_chip(shared)
+    else
+        -- the tab's own page goes unused; a tab shown before its first sub-tab (first or restored tab) left it
+        -- visible on top of every page, where its empty columns swallowed the mouse wheel
+        self.Page.Frame.Visible = false
     end
 end
 
