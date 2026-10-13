@@ -300,12 +300,14 @@ function ColorPicker:_open(anchor)
     })
 end
 
-function ColorPicker:Render(parent, maid)
-    local row = Row.new(self, parent, maid)
+-- the swatch alone, for another element's row (Toggle and Module Color); a click opens the picker
+function ColorPicker:RenderInline(parent, maid, props)
+    props = props or {}
     local swatch = Util.New("TextButton", {
-        Size = UDim2.fromOffset(32, 18),
+        Size = UDim2.fromOffset(props.Width or 32, props.Height or 18),
+        LayoutOrder = props.LayoutOrder or 0,
         Theme = { BackgroundColor3 = "Elevated" },
-        Parent = row.Right,
+        Parent = parent,
     })
     Util.Corner(5, swatch)
     Util.Stroke(swatch)
@@ -325,6 +327,13 @@ function ColorPicker:Render(parent, maid)
         end
         self:_open(swatch)
     end)
+    if self.Tooltip then maid:Give(Tooltip.Attach(swatch, self.Tooltip)) end
+    return swatch
+end
+
+function ColorPicker:Render(parent, maid)
+    local row = Row.new(self, parent, maid)
+    self:RenderInline(row.Right, maid)
     return row.Frame
 end
 

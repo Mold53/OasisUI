@@ -10,6 +10,7 @@ local Tooltip = import("Components/Tooltip")
 
 -- feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
+--      Color (a colour swatch next to the switch: ColorPicker options with their own Flag),
 --      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
 Module.__index = Module
@@ -66,6 +67,11 @@ function Module.new(tab, def)
     if self.Flag then
         window.Config:Register(self.Flag, self)
         window.Library.Flags[self.Flag] = self
+    end
+    if self.Toggleable and def.Color then
+        local spec = table.clone(def.Color)
+        spec.Title = spec.Title or (self.Title .. " colour")
+        self.Color = import("Elements/ColorPicker").new(self, spec)
     end
     self.Favorite = window.State.Favorites[self.Id] == true
     return self
@@ -153,6 +159,7 @@ end
 
 function Module:Reset()
     self:SetEnabled(self.Default)
+    if self.Color then self.Color:Reset() end
     self:_eachElement(function(element)
         if element.Reset then pcall(element.Reset, element) end
     end)
@@ -178,6 +185,7 @@ end
 function Module:Destroy()
     for _, mount in table.clone(self._mounts) do mount:Clean() end
     for _, child in table.clone(self.Children) do child:Destroy() end
+    if self.Color then self.Color:Destroy() end
     if self.Binding then self.Binding:Destroy() end
     if self.Flag then self.Window.Config:Unregister(self.Flag, self) end
     self.Window:_removeModule(self)
@@ -385,6 +393,7 @@ function Module:Render(parent, maid, view)
             Parent = bottom,
         })
         Util.List(controls, 8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
+        if self.Color then self.Color:RenderInline(controls, maid, { LayoutOrder = 0, Width = 28, Height = 16 }) end
         chevron = Util.New("ImageButton", {
             Size = UDim2.fromOffset(16, 16),
             Image = Util.IconId("chevron-down"),

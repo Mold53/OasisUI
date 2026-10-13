@@ -4,6 +4,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Row = import("Components/Row")
 local Tooltip = import("Components/Tooltip")
+local TextArea = import("Components/TextArea")
 
 -- def: Title, Default, Placeholder, Numeric, Min, Max, Step, MaxLength, Finished (default true: commit on enter / focus lost),
 --      Validate(text) -> ok, message, Icon, Multiline, Height, ClearOnFocus, Callback(value)
@@ -131,20 +132,36 @@ function Input:Render(parent, maid)
         Util.Icon(self.Def.Icon, { Size = UDim2.fromOffset(13, 13), Position = UDim2.fromOffset(9, height == 28 and 7 or 8), Color = "TextMuted", Parent = field })
         left = 28
     end
-    local box = Util.New("TextBox", {
-        Size = UDim2.new(1, -left - 28, 1, self.Def.Multiline and -12 or 0),
-        Position = UDim2.fromOffset(left, self.Def.Multiline and 6 or 0),
-        Text = self:Text(),
-        PlaceholderText = self.Def.Placeholder or "",
-        TextSize = 12,
-        MultiLine = self.Def.Multiline == true,
-        TextWrapped = self.Def.Multiline == true,
-        TextYAlignment = self.Def.Multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
-        ClearTextOnFocus = self.Def.ClearOnFocus == true,
-        ClipsDescendants = true,
-        Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
-        Parent = field,
-    })
+    local box
+    if self.Def.Multiline then
+        -- long text scrolls inside the field and follows the caret
+        local _
+        _, box = TextArea.new({
+            Size = UDim2.new(1, -left - 22, 1, -4),
+            Position = UDim2.fromOffset(left - 6, 2),
+            Parent = field,
+            Box = {
+                Text = self:Text(),
+                PlaceholderText = self.Def.Placeholder or "",
+                TextSize = 12,
+                ClearTextOnFocus = self.Def.ClearOnFocus == true,
+                Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
+            },
+        })
+    else
+        box = Util.New("TextBox", {
+            Size = UDim2.new(1, -left - 28, 1, 0),
+            Position = UDim2.fromOffset(left, 0),
+            Text = self:Text(),
+            PlaceholderText = self.Def.Placeholder or "",
+            TextSize = 12,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            ClearTextOnFocus = self.Def.ClearOnFocus == true,
+            ClipsDescendants = true,
+            Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
+            Parent = field,
+        })
+    end
     local clear = Util.New("ImageButton", {
         AnchorPoint = Vector2.new(1, 0),
         Position = UDim2.new(1, -8, 0, height == 28 and 8 or 8),

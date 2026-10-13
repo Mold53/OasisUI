@@ -4,9 +4,11 @@ local Row = import("Components/Row")
 local Widgets = import("Components/Widgets")
 local Binding = import("Core/Binding")
 local Input = import("Elements/Input")
+local ColorPicker = import("Elements/ColorPicker")
 
 -- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }),
---      Field (a value box in the same row, set while off too: Input options plus Width), Listed, Callback(value)
+--      Field (a value box in the same row, set while off too: Input options plus Width),
+--      Color (a colour swatch in the same row: ColorPicker options with their own Flag), Listed, Callback(value)
 local Toggle = Base.Class("Toggle")
 
 function Toggle.new(container, def)
@@ -39,16 +41,23 @@ function Toggle.new(container, def)
         spec.Title = spec.Title or self.Title
         self.Field = Input.new(container, spec)
     end
+    if def.Color then
+        local spec = table.clone(def.Color)
+        spec.Title = spec.Title or (self.Title .. " colour")
+        self.Color = ColorPicker.new(container, spec)
+    end
     return self
 end
 
 function Toggle:Reset()
     Base.Reset(self)
     if self.Field then self.Field:Reset() end
+    if self.Color then self.Color:Reset() end
 end
 
 function Toggle:Destroy()
     if self.Field then self.Field:Destroy() end
+    if self.Color then self.Color:Destroy() end
     Base.Destroy(self)
 end
 
@@ -81,11 +90,12 @@ function Toggle:Render(parent, maid)
     if self.Field then
         self.Field:RenderInline(row.Right, maid, { Width = self.Def.Field.Width, LayoutOrder = 0 })
     end
+    if self.Color then self.Color:RenderInline(row.Right, maid, { LayoutOrder = 1 }) end
     if self.Binding then
-        local _, connection = Widgets.KeyPill(row.Right, self.Binding, { LayoutOrder = 1 })
+        local _, connection = Widgets.KeyPill(row.Right, self.Binding, { LayoutOrder = 2 })
         maid:Give(connection)
     end
-    local _, paint = (self.Style == "Checkbox" and Widgets.Checkbox or Widgets.Switch)(row.Right, { LayoutOrder = 2 })
+    local _, paint = (self.Style == "Checkbox" and Widgets.Checkbox or Widgets.Switch)(row.Right, { LayoutOrder = 3 })
     paint(self.Value, false)
     maid:Give(self.Changed:Connect(function(value) paint(value, true) end))
     row.Button.MouseButton1Click:Connect(function()

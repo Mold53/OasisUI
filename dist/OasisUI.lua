@@ -1,4 +1,4 @@
--- OasisUI v1.5.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.6.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -760,6 +760,7 @@ local Services = import("Core/Services")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Maid = import("Core/Maid")
+local TextArea = import("Components/TextArea")
 
 -- modal over a window; a button callback returning false keeps the dialog open
 local Dialog = {}
@@ -852,35 +853,37 @@ function Dialog.Open(root, options)
         local stroke = Util.Stroke(field)
         local font = input.Monospace and function() return Font.new("rbxasset://fonts/families/RobotoMono.json") end
             or Theme.Font(Enum.FontWeight.Medium)
-        local holder = field
         if multiline then
-            -- long text scrolls inside the field
-            holder = Util.New("ScrollingFrame", {
-                Size = UDim2.new(1, -8, 1, -12),
-                Position = UDim2.fromOffset(4, 6),
-                ScrollBarThickness = 3,
+            -- long text scrolls inside the field and follows the caret
+            local _
+            _, box = TextArea.new({
+                Size = UDim2.new(1, -4, 1, -4),
+                Position = UDim2.fromOffset(2, 2),
                 ZIndex = 83,
-                Theme = { ScrollBarImageColor3 = "TextMuted" },
+                Parent = field,
+                Box = {
+                    Text = input.Default or "",
+                    PlaceholderText = input.Placeholder or "",
+                    TextSize = 12,
+                    TextEditable = input.ReadOnly ~= true,
+                    ClearTextOnFocus = false,
+                    Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
+                },
+            })
+        else
+            box = Util.New("TextBox", {
+                Size = UDim2.new(1, -20, 1, 0),
+                Position = UDim2.fromOffset(10, 0),
+                Text = input.Default or "",
+                PlaceholderText = input.Placeholder or "",
+                TextSize = 12,
+                TextEditable = input.ReadOnly ~= true,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                ZIndex = 84,
+                Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
                 Parent = field,
             })
-            Util.Padding(holder, 0, 6, 2, 6)
-            Util.AutoCanvas(holder, Util.List(holder, 0))
         end
-        box = Util.New("TextBox", {
-            Size = multiline and UDim2.new(1, 0, 0, 0) or UDim2.new(1, -20, 1, 0),
-            Position = UDim2.fromOffset(multiline and 0 or 10, 0),
-            AutomaticSize = multiline and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
-            Text = input.Default or "",
-            PlaceholderText = input.Placeholder or "",
-            TextSize = 12,
-            MultiLine = multiline,
-            TextWrapped = multiline,
-            TextEditable = input.ReadOnly ~= true,
-            TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
-            ZIndex = 84,
-            Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
-            Parent = holder,
-        })
         box.Focused:Connect(function() Theme.Bind(stroke, { Color = "Accent" }) end)
         box.FocusLost:Connect(function() Theme.Bind(stroke, { Color = "Stroke" }) end)
         handle.Input = box
@@ -1169,6 +1172,7 @@ local Tooltip = import("Components/Tooltip")
 
 -- feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
+--      Color (a colour swatch next to the switch: ColorPicker options with their own Flag),
 --      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
 Module.__index = Module
@@ -1225,6 +1229,11 @@ function Module.new(tab, def)
     if self.Flag then
         window.Config:Register(self.Flag, self)
         window.Library.Flags[self.Flag] = self
+    end
+    if self.Toggleable and def.Color then
+        local spec = table.clone(def.Color)
+        spec.Title = spec.Title or (self.Title .. " colour")
+        self.Color = import("Elements/ColorPicker").new(self, spec)
     end
     self.Favorite = window.State.Favorites[self.Id] == true
     return self
@@ -1312,6 +1321,7 @@ end
 
 function Module:Reset()
     self:SetEnabled(self.Default)
+    if self.Color then self.Color:Reset() end
     self:_eachElement(function(element)
         if element.Reset then pcall(element.Reset, element) end
     end)
@@ -1337,6 +1347,7 @@ end
 function Module:Destroy()
     for _, mount in table.clone(self._mounts) do mount:Clean() end
     for _, child in table.clone(self.Children) do child:Destroy() end
+    if self.Color then self.Color:Destroy() end
     if self.Binding then self.Binding:Destroy() end
     if self.Flag then self.Window.Config:Unregister(self.Flag, self) end
     self.Window:_removeModule(self)
@@ -1544,6 +1555,7 @@ function Module:Render(parent, maid, view)
             Parent = bottom,
         })
         Util.List(controls, 8, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
+        if self.Color then self.Color:RenderInline(controls, maid, { LayoutOrder = 0, Width = 28, Height = 16 }) end
         chevron = Util.New("ImageButton", {
             Size = UDim2.fromOffset(16, 16),
             Image = Util.IconId("chevron-down"),
@@ -3670,6 +3682,114 @@ function Tab:PageOf(module)
 end
 
 return Tab
+end
+
+__modules["Components/TextArea"] = function(...)
+local import = ...
+local Services = import("Core/Services")
+local Util = import("Core/Util")
+
+-- multiline text that scrolls. AutomaticSize cannot grow a box past the canvas of the scrolling frame
+-- around it, so the box is sized from its measured text; while typing the view follows the caret
+local TextArea = {}
+
+local TextService = Services.TextService
+
+-- props: Size, Position, LayoutOrder, ZIndex, Parent, Padding (inner, default 6), and Box = TextBox props
+-- (Theme included); returns the scrolling frame, the box and refit() for a font or width change
+function TextArea.new(props)
+    local pad = props.Padding or 6
+    local scroll = Util.New("ScrollingFrame", {
+        Size = props.Size,
+        Position = props.Position or UDim2.new(),
+        LayoutOrder = props.LayoutOrder or 0,
+        ZIndex = props.ZIndex or 1,
+        ScrollBarThickness = 3,
+        AutomaticCanvasSize = Enum.AutomaticSize.None,
+        CanvasSize = UDim2.new(),
+        ScrollingDirection = Enum.ScrollingDirection.Y,
+        Theme = { ScrollBarImageColor3 = "TextMuted" },
+        Parent = props.Parent,
+    })
+    local boxProps = table.clone(props.Box or {})
+    boxProps.Size = UDim2.new(1, -pad * 2, 0, 0)
+    boxProps.Position = UDim2.fromOffset(pad, pad)
+    boxProps.MultiLine = true
+    boxProps.TextWrapped = true
+    boxProps.TextXAlignment = Enum.TextXAlignment.Left
+    boxProps.TextYAlignment = Enum.TextYAlignment.Top
+    boxProps.ZIndex = (props.ZIndex or 1) + 1
+    boxProps.Parent = scroll
+    local box = Util.New("TextBox", boxProps)
+
+    local function scale() return math.max(Util.ScaleOf(scroll), 0.01) end
+
+    -- text height at the box width in offset units; nil when it cannot be measured now
+    local function measure(text)
+        local width = box.AbsoluteSize.X / scale()
+        if width < 4 then return nil end
+        local params = Instance.new("GetTextBoundsParams")
+        params.Text = text ~= "" and text or " "
+        params.Font = box.FontFace
+        params.Size = box.TextSize
+        params.Width = width
+        local ok, bounds = pcall(TextService.GetTextBoundsAsync, TextService, params)
+        if not ok then return nil end
+        -- a trailing newline starts a line the measure leaves out
+        local height = bounds.Y
+        if text:sub(-1) == "\n" then height += box.TextSize * box.LineHeight end
+        return height
+    end
+
+    -- the caret line inside the view, nothing scrolled otherwise
+    local function follow(textHeight)
+        if not box:IsFocused() then return end
+        local caret = box.CursorPosition
+        if caret < 1 then return end
+        local view = scroll.AbsoluteSize.Y / scale()
+        local line = box.TextSize * box.LineHeight
+        local bottom
+        if caret > #box.Text then
+            bottom = textHeight
+        else
+            bottom = measure(box.Text:sub(1, caret - 1)) or textHeight
+        end
+        local top = bottom - line
+        local at = scroll.CanvasPosition.Y
+        if bottom + pad > at + view then
+            scroll.CanvasPosition = Vector2.new(0, bottom + pad - view)
+        elseif top < at then
+            scroll.CanvasPosition = Vector2.new(0, math.max(top - pad, 0))
+        end
+    end
+
+    local token = 0
+    local function refit(followCaret)
+        token += 1
+        local mine = token
+        task.spawn(function()
+            local height = measure(box.Text)
+            if mine ~= token or not height or not box.Parent then return end
+            local view = scroll.AbsoluteSize.Y / scale()
+            local total = math.max(math.ceil(height) + pad * 2, view)
+            box.Size = UDim2.new(1, -pad * 2, 0, total - pad * 2)
+            box.Position = UDim2.fromOffset(pad, pad)
+            scroll.CanvasSize = UDim2.fromOffset(0, total)
+            if followCaret then follow(height) end
+        end)
+    end
+
+    box:GetPropertyChangedSignal("Text"):Connect(function() refit(true) end)
+    box:GetPropertyChangedSignal("CursorPosition"):Connect(function()
+        if box:IsFocused() then refit(true) end
+    end)
+    box:GetPropertyChangedSignal("FontFace"):Connect(function() refit(false) end)
+    scroll:GetPropertyChangedSignal("AbsoluteSize"):Connect(function() refit(false) end)
+    task.defer(refit, false)
+    return scroll, box, refit
+end
+
+return TextArea
 end
 
 __modules["Components/Tooltip"] = function(...)
@@ -7726,12 +7846,14 @@ function ColorPicker:_open(anchor)
     })
 end
 
-function ColorPicker:Render(parent, maid)
-    local row = Row.new(self, parent, maid)
+-- the swatch alone, for another element's row (Toggle and Module Color); a click opens the picker
+function ColorPicker:RenderInline(parent, maid, props)
+    props = props or {}
     local swatch = Util.New("TextButton", {
-        Size = UDim2.fromOffset(32, 18),
+        Size = UDim2.fromOffset(props.Width or 32, props.Height or 18),
+        LayoutOrder = props.LayoutOrder or 0,
         Theme = { BackgroundColor3 = "Elevated" },
-        Parent = row.Right,
+        Parent = parent,
     })
     Util.Corner(5, swatch)
     Util.Stroke(swatch)
@@ -7751,6 +7873,13 @@ function ColorPicker:Render(parent, maid)
         end
         self:_open(swatch)
     end)
+    if self.Tooltip then maid:Give(Tooltip.Attach(swatch, self.Tooltip)) end
+    return swatch
+end
+
+function ColorPicker:Render(parent, maid)
+    local row = Row.new(self, parent, maid)
+    self:RenderInline(row.Right, maid)
     return row.Frame
 end
 
@@ -8503,6 +8632,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Row = import("Components/Row")
 local Tooltip = import("Components/Tooltip")
+local TextArea = import("Components/TextArea")
 
 -- def: Title, Default, Placeholder, Numeric, Min, Max, Step, MaxLength, Finished (default true: commit on enter / focus lost),
 --      Validate(text) -> ok, message, Icon, Multiline, Height, ClearOnFocus, Callback(value)
@@ -8630,20 +8760,36 @@ function Input:Render(parent, maid)
         Util.Icon(self.Def.Icon, { Size = UDim2.fromOffset(13, 13), Position = UDim2.fromOffset(9, height == 28 and 7 or 8), Color = "TextMuted", Parent = field })
         left = 28
     end
-    local box = Util.New("TextBox", {
-        Size = UDim2.new(1, -left - 28, 1, self.Def.Multiline and -12 or 0),
-        Position = UDim2.fromOffset(left, self.Def.Multiline and 6 or 0),
-        Text = self:Text(),
-        PlaceholderText = self.Def.Placeholder or "",
-        TextSize = 12,
-        MultiLine = self.Def.Multiline == true,
-        TextWrapped = self.Def.Multiline == true,
-        TextYAlignment = self.Def.Multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
-        ClearTextOnFocus = self.Def.ClearOnFocus == true,
-        ClipsDescendants = true,
-        Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
-        Parent = field,
-    })
+    local box
+    if self.Def.Multiline then
+        -- long text scrolls inside the field and follows the caret
+        local _
+        _, box = TextArea.new({
+            Size = UDim2.new(1, -left - 22, 1, -4),
+            Position = UDim2.fromOffset(left - 6, 2),
+            Parent = field,
+            Box = {
+                Text = self:Text(),
+                PlaceholderText = self.Def.Placeholder or "",
+                TextSize = 12,
+                ClearTextOnFocus = self.Def.ClearOnFocus == true,
+                Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
+            },
+        })
+    else
+        box = Util.New("TextBox", {
+            Size = UDim2.new(1, -left - 28, 1, 0),
+            Position = UDim2.fromOffset(left, 0),
+            Text = self:Text(),
+            PlaceholderText = self.Def.Placeholder or "",
+            TextSize = 12,
+            TextYAlignment = Enum.TextYAlignment.Center,
+            ClearTextOnFocus = self.Def.ClearOnFocus == true,
+            ClipsDescendants = true,
+            Theme = { TextColor3 = "Text", PlaceholderColor3 = "TextMuted", FontFace = Theme.Font(Enum.FontWeight.Medium) },
+            Parent = field,
+        })
+    end
     local clear = Util.New("ImageButton", {
         AnchorPoint = Vector2.new(1, 0),
         Position = UDim2.new(1, -8, 0, height == 28 and 8 or 8),
@@ -9687,9 +9833,11 @@ local Row = import("Components/Row")
 local Widgets = import("Components/Widgets")
 local Binding = import("Core/Binding")
 local Input = import("Elements/Input")
+local ColorPicker = import("Elements/ColorPicker")
 
 -- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }),
---      Field (a value box in the same row, set while off too: Input options plus Width), Listed, Callback(value)
+--      Field (a value box in the same row, set while off too: Input options plus Width),
+--      Color (a colour swatch in the same row: ColorPicker options with their own Flag), Listed, Callback(value)
 local Toggle = Base.Class("Toggle")
 
 function Toggle.new(container, def)
@@ -9722,16 +9870,23 @@ function Toggle.new(container, def)
         spec.Title = spec.Title or self.Title
         self.Field = Input.new(container, spec)
     end
+    if def.Color then
+        local spec = table.clone(def.Color)
+        spec.Title = spec.Title or (self.Title .. " colour")
+        self.Color = ColorPicker.new(container, spec)
+    end
     return self
 end
 
 function Toggle:Reset()
     Base.Reset(self)
     if self.Field then self.Field:Reset() end
+    if self.Color then self.Color:Reset() end
 end
 
 function Toggle:Destroy()
     if self.Field then self.Field:Destroy() end
+    if self.Color then self.Color:Destroy() end
     Base.Destroy(self)
 end
 
@@ -9764,11 +9919,12 @@ function Toggle:Render(parent, maid)
     if self.Field then
         self.Field:RenderInline(row.Right, maid, { Width = self.Def.Field.Width, LayoutOrder = 0 })
     end
+    if self.Color then self.Color:RenderInline(row.Right, maid, { LayoutOrder = 1 }) end
     if self.Binding then
-        local _, connection = Widgets.KeyPill(row.Right, self.Binding, { LayoutOrder = 1 })
+        local _, connection = Widgets.KeyPill(row.Right, self.Binding, { LayoutOrder = 2 })
         maid:Give(connection)
     end
-    local _, paint = (self.Style == "Checkbox" and Widgets.Checkbox or Widgets.Switch)(row.Right, { LayoutOrder = 2 })
+    local _, paint = (self.Style == "Checkbox" and Widgets.Checkbox or Widgets.Switch)(row.Right, { LayoutOrder = 3 })
     paint(self.Value, false)
     maid:Give(self.Changed:Connect(function(value) paint(value, true) end))
     row.Button.MouseButton1Click:Connect(function()
@@ -10016,5 +10172,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.5.0"
+Library.Version = "1.6.0"
 return Library

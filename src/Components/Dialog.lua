@@ -3,6 +3,7 @@ local Services = import("Core/Services")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Maid = import("Core/Maid")
+local TextArea = import("Components/TextArea")
 
 -- modal over a window; a button callback returning false keeps the dialog open
 local Dialog = {}
@@ -95,35 +96,37 @@ function Dialog.Open(root, options)
         local stroke = Util.Stroke(field)
         local font = input.Monospace and function() return Font.new("rbxasset://fonts/families/RobotoMono.json") end
             or Theme.Font(Enum.FontWeight.Medium)
-        local holder = field
         if multiline then
-            -- long text scrolls inside the field
-            holder = Util.New("ScrollingFrame", {
-                Size = UDim2.new(1, -8, 1, -12),
-                Position = UDim2.fromOffset(4, 6),
-                ScrollBarThickness = 3,
+            -- long text scrolls inside the field and follows the caret
+            local _
+            _, box = TextArea.new({
+                Size = UDim2.new(1, -4, 1, -4),
+                Position = UDim2.fromOffset(2, 2),
                 ZIndex = 83,
-                Theme = { ScrollBarImageColor3 = "TextMuted" },
+                Parent = field,
+                Box = {
+                    Text = input.Default or "",
+                    PlaceholderText = input.Placeholder or "",
+                    TextSize = 12,
+                    TextEditable = input.ReadOnly ~= true,
+                    ClearTextOnFocus = false,
+                    Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
+                },
+            })
+        else
+            box = Util.New("TextBox", {
+                Size = UDim2.new(1, -20, 1, 0),
+                Position = UDim2.fromOffset(10, 0),
+                Text = input.Default or "",
+                PlaceholderText = input.Placeholder or "",
+                TextSize = 12,
+                TextEditable = input.ReadOnly ~= true,
+                TextYAlignment = Enum.TextYAlignment.Center,
+                ZIndex = 84,
+                Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
                 Parent = field,
             })
-            Util.Padding(holder, 0, 6, 2, 6)
-            Util.AutoCanvas(holder, Util.List(holder, 0))
         end
-        box = Util.New("TextBox", {
-            Size = multiline and UDim2.new(1, 0, 0, 0) or UDim2.new(1, -20, 1, 0),
-            Position = UDim2.fromOffset(multiline and 0 or 10, 0),
-            AutomaticSize = multiline and Enum.AutomaticSize.Y or Enum.AutomaticSize.None,
-            Text = input.Default or "",
-            PlaceholderText = input.Placeholder or "",
-            TextSize = 12,
-            MultiLine = multiline,
-            TextWrapped = multiline,
-            TextEditable = input.ReadOnly ~= true,
-            TextYAlignment = multiline and Enum.TextYAlignment.Top or Enum.TextYAlignment.Center,
-            ZIndex = 84,
-            Theme = { TextColor3 = input.ReadOnly and "TextDim" or "Text", PlaceholderColor3 = "TextMuted", FontFace = font },
-            Parent = holder,
-        })
         box.Focused:Connect(function() Theme.Bind(stroke, { Color = "Accent" }) end)
         box.FocusLost:Connect(function() Theme.Bind(stroke, { Color = "Stroke" }) end)
         handle.Input = box

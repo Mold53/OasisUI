@@ -309,6 +309,12 @@ do
         Field = { Default = 250, Numeric = true, Min = 0, Max = 1e6, Width = 80, Tooltip = "1.5k and 2m work.", Callback = report("Value") },
         Callback = report("With a value"),
     })
+    toggles:Toggle({
+        Title = "With a colour",
+        Description = "Color = { … }: a swatch in the row",
+        Color = { Default = Color3.fromRGB(120, 220, 140), Callback = report("Row colour") },
+        Callback = report("With a colour"),
+    })
 
     local buttons = Controls:Section({ Title = "Button", Icon = "mouse-pointer-click", Side = "Right" })
     buttons:Button({ Title = "Default", Icon = "rocket", Callback = function() event("Button", "Default") end })
