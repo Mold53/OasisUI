@@ -23,21 +23,21 @@ in the game.
 Pin a version for scripts you ship. The release file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.5.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.6.0/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.5.0/OasisUI.lua` |
+| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.6.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.5.0"`).
+`OasisUI.Version` holds the loaded version (`"1.6.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.5.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.6.0/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -174,6 +174,7 @@ local Module = Aimbot:Module({
     Keybind = { Key = "MouseButton2", Mode = "Hold" },  -- false hides the pill
     Risky = false,                        -- red title
     Side = "Left",                        -- first placement; the user's layout wins afterwards
+    Color = nil,                          -- { ColorPicker options }: a colour swatch next to the switch, own Flag
     Opened = nil,                         -- force the settings open/closed initially
     Callback = function(enabled) end,
 })
@@ -201,13 +202,13 @@ Shared methods: `Get()`, `Set(value, silent?)`, `Reset()`, `OnChanged(fn)`, `Set
 
 | Element | Options | Extra methods |
 | --- | --- | --- |
-| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }`, `Listed`, `Field = { Input options, Width }` (a value box in the row, settable while off, with its own `Flag`) | `Binding`, `Field` (the value box, an Input) |
+| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }`, `Listed`, `Field = { Input options, Width }` (a value box in the row, settable while off, with its own `Flag`), `Color = { ColorPicker options }` (a colour swatch in the row, with its own `Flag`) | `Binding`, `Field` (the value box, an Input), `Color` (the swatch, a ColorPicker) |
 | `Button` | `Icon`, `Style = "Default" \| "Primary" \| "Danger" \| "Ghost"`, `Confirm = true \| text`, `Keybind` | `Press()` |
 | `Buttons` | list of `{ Title, Icon, Style, Confirm, Callback }` | `SetButtonTitle(i, text)`, `SetButtonLocked(i, bool)` |
 | `Slider` | `Min`, `Max`, `Default`, `Step` or `Rounding`, `Prefix`, `Suffix`, `Format(v)`, `Input` (editable value, default on), `Buttons` (−/+), `Icons = { From, To }`, `ShowRange`, `Live` (default on) | `SetMin`, `SetMax` |
 | `Range` | as Slider, `Default = { lo, hi }`, `MinGap`; callback gets `(lo, hi)` | |
 | `Dropdown` | `Values` (strings or `{ Title, Value, Description, Icon }`), `Default`, `Multi`, `Search` (auto above 8), `AllowNone`, `Placeholder`, `MaxVisible`, `Action = { Icon, Tooltip, Callback(value) }` (a square button after the field) | `Refresh(values, keep?)`, `Add`, `Remove`, `Toggle(value)`, `IsSelected`, `GetValues` |
-| `Input` | `Default`, `Placeholder`, `Numeric`, `Min`, `Max`, `Step`, `MaxLength`, `Finished` (default on), `Validate(text) -> ok, message`, `Icon`, `Multiline`, `Height`, `ClearOnFocus` | `Submit(text)` |
+| `Input` | `Default`, `Placeholder`, `Numeric`, `Min`, `Max`, `Step`, `MaxLength`, `Finished` (default on), `Validate(text) -> ok, message`, `Icon`, `Multiline` (scrolls, follows the caret), `Height`, `ClearOnFocus` | `Submit(text)` |
 | `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, `Listed`, capture options (below), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
 | `ColorPicker` | `Default`, `Transparency` (enables alpha), `Rainbow`; callback gets `(color, transparency)` | `SetRainbow(bool)` |
 | `Segmented` | `Values`, `Default` | |

@@ -4,6 +4,21 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-10-13
+
+### Added
+
+- Toggle `Color`: a colour swatch in the toggle's own row (ColorPicker options with their own `Flag`),
+  `toggle.Color` is the ColorPicker. Module `Color`: the same next to the card's switch.
+- `ColorPicker:RenderInline(parent, maid, props)`: the swatch alone, for another element's row.
+
+### Fixed
+
+- Multiline inputs and dialog inputs did not scroll past their visible height: a text box sized
+  automatically inside a scrolling frame stops at the frame's canvas, so long text was cut off. The text
+  area is sized from its measured text now, scrolls with the mouse wheel and follows the caret while
+  typing (at the end of the text the view stays at the bottom).
+
 ## [1.5.0] - 2026-10-12
 
 ### Added
