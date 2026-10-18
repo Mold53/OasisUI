@@ -11,7 +11,8 @@ local Tooltip = import("Components/Tooltip")
 -- feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
 --      Color (a colour swatch next to the switch: ColorPicker options with their own Flag),
---      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
+--      Notify (default of the card's bell: a notification on every on / off), Opened, Side ("Left" | "Right"),
+--      Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
 Module.__index = Module
 Container.Apply(Module)
@@ -74,6 +75,9 @@ function Module.new(tab, def)
         self.Color = import("Elements/ColorPicker").new(self, spec)
     end
     self.Favorite = window.State.Favorites[self.Id] == true
+    local notify = window.State.Notify[self.Id]
+    if notify == nil then notify = def.Notify == true end
+    self.Notify = self.Toggleable and notify
     return self
 end
 
@@ -94,6 +98,7 @@ function Module:SetEnabled(enabled, silent)
     if not silent then
         Util.Safe(self.Def.Callback, enabled)
         for _, fn in self._listeners do Util.Safe(fn, enabled) end
+        if self.Notify then self.Window:_toggleNote(self, enabled) end
     end
     if self.Window.Interface.AutoExpand and #self.Children > 0 then self:SetExpanded(enabled) end
     self.Window:_touch(true)
@@ -125,6 +130,10 @@ end
 
 function Module:SetFavorite(favorite)
     self.Window:_setFavorite(self, favorite and true or false)
+end
+
+function Module:SetNotify(on)
+    if self.Toggleable then self.Window:_setNotify(self, on and true or false) end
 end
 
 function Module:SetTitle(text)
@@ -200,6 +209,9 @@ function Module:_menu(view, point)
         table.insert(items, { Title = self.Enabled and "Disable" or "Enable", Icon = "power", Disabled = self.Locked, Callback = function() self:ToggleEnabled() end })
     end
     table.insert(items, { Title = self.Favorite and "Remove favorite" or "Add to favorites", Icon = "star", Callback = function() self:SetFavorite(not self.Favorite) end })
+    if self.Toggleable then
+        table.insert(items, { Title = self.Notify and "Mute on / off" or "Notify on / off", Icon = self.Notify and "bell-off" or "bell", Callback = function() self:SetNotify(not self.Notify) end })
+    end
     if #self.Children > 0 then
         table.insert(items, { Title = self.Expanded and "Collapse" or "Expand", Icon = "chevrons-up-down", Callback = function() self:SetExpanded(not self.Expanded) end })
     end
@@ -328,6 +340,21 @@ function Module:Render(parent, maid, view)
         Parent = right,
     })
     maid:Give(Tooltip.Attach(star, function() return self.Favorite and "Remove from favorites" or "Add to favorites" end))
+    local bell
+    if self.Toggleable then
+        bell = Util.New("ImageButton", {
+            Size = UDim2.fromOffset(14, 14),
+            Image = Util.IconId(self.Notify and "bell-ring" or "bell"),
+            LayoutOrder = 0,
+            Theme = {
+                ImageColor3 = function(t) return self.Notify and t.Accent or t.TextMuted end,
+                ImageTransparency = function() return (self.Notify and 0) or (hover and 0.25) or (Util.Touch() and 0.55) or 1 end,
+            },
+            Parent = right,
+        })
+        maid:Give(Tooltip.Attach(bell, function() return self.Notify and "Mute on / off" or "Notify on / off" end))
+        bell.MouseButton1Click:Connect(function() self:SetNotify(not self.Notify) end)
+    end
     local grip
     if view.Page and view.Page.Draggable then
         grip = Util.New("ImageButton", {
@@ -496,6 +523,10 @@ function Module:Render(parent, maid, view)
         if what == "Visible" then card.Visible = self.Visible end
         if what == "Expanded" or what == "Children" then paintBody(what == "Expanded") end
         if what == "Favorite" then Theme.Refresh(star, 0.15) end
+        if what == "Notify" and bell then
+            bell.Image = Util.IconId(self.Notify and "bell-ring" or "bell")
+            Theme.Refresh(bell, 0.15)
+        end
     end
     maid:Give(self.StateChanged:Connect(paint))
     maid:Give(self.Changed:Connect(function(enabled)
@@ -506,6 +537,7 @@ function Module:Render(parent, maid, view)
     maid:Give(Util.Hover(card, function(on)
         hover = on
         Theme.Refresh(star, 0.12)
+        if bell then Theme.Refresh(bell, 0.12) end
         if grip then Theme.Refresh(grip, 0.12) end
         Theme.Refresh(stroke, 0.12)
     end))

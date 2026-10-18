@@ -1,4 +1,4 @@
--- OasisUI v1.6.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.7.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -302,8 +302,10 @@ return function(window)
     -- menu --------------------------------------------------------------------
     local menu = tab:Section({ Title = "Menu", Icon = "sliders-horizontal", Side = "Right", Id = "settings/menu" })
     menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding })
-    menu:Dropdown({
-        Title = "Notifications",
+    -- scripts add their own rows here (window.NotifySettings), e.g. a toggle for their load message
+    local alerts = menu:Group({ Title = "Notifications", Icon = "bell" })
+    alerts:Dropdown({
+        Title = "Position",
         Values = { "BottomRight", "TopRight", "BottomLeft", "TopLeft" },
         Default = interface.NotifyPosition,
         Callback = function(position)
@@ -314,6 +316,22 @@ return function(window)
             notify("Notification", "This is how messages look.", "Info")
         end },
     })
+    alerts:Slider({ Title = "Duration", Min = 50, Max = 300, Step = 10, Suffix = "%", Default = interface.NotifyDuration,
+        Callback = function(value)
+            Notification.Scale = value / 100
+            window:SetInterface("NotifyDuration", value)
+        end })
+    alerts:Slider({ Title = "On screen", Min = 1, Max = 8, Default = interface.NotifyMax,
+        Callback = function(value)
+            Notification.Max = value
+            window:SetInterface("NotifyMax", value)
+        end })
+    alerts:Segmented({ Title = "Feature on / off", Values = { "Always", "Hidden", "Off" }, Default = interface.ToggleAlerts,
+        Tooltip = "Cards with the bell on. Hidden: only while the menu is hidden.",
+        Callback = function(value) window:SetInterface("ToggleAlerts", value) end })
+    alerts:Toggle({ Title = "Config loaded", Default = interface.NotifyConfig ~= false,
+        Callback = function(on) window:SetInterface("NotifyConfig", on) end })
+    window.NotifySettings = alerts
     menu:Buttons({
         { Title = "Center", Icon = "move", Callback = function() window:Center() end },
         { Title = "Reset layout", Icon = "layout-grid", Confirm = "Confirm", Callback = function()
@@ -943,9 +961,7 @@ function Dialog.Open(root, options)
             if closed then return end
             local keep = false
             if spec.Callback then
-                local ok, result = pcall(spec.Callback, box and box.Text or nil, handle)
-                if not ok then warn("[OasisUI] dialog callback: " .. tostring(result)) end
-                keep = result == false
+                keep = Util.Safe(spec.Callback, box and box.Text or nil, handle) == false
             end
             if not keep then handle:Close() end
         end
@@ -1173,7 +1189,8 @@ local Tooltip = import("Components/Tooltip")
 -- feature card: switch + key in the header, settings fold out below
 -- def: Title, Description, Icon, Flag, Default, Toggle (false = section), Keybind (false | key | { Key, Mode }),
 --      Color (a colour swatch next to the switch: ColorPicker options with their own Flag),
---      Opened, Side ("Left" | "Right"), Risky (red title), Locked, Visible, Callback(enabled)
+--      Notify (default of the card's bell: a notification on every on / off), Opened, Side ("Left" | "Right"),
+--      Risky (red title), Locked, Visible, Callback(enabled)
 local Module = {}
 Module.__index = Module
 Container.Apply(Module)
@@ -1236,6 +1253,9 @@ function Module.new(tab, def)
         self.Color = import("Elements/ColorPicker").new(self, spec)
     end
     self.Favorite = window.State.Favorites[self.Id] == true
+    local notify = window.State.Notify[self.Id]
+    if notify == nil then notify = def.Notify == true end
+    self.Notify = self.Toggleable and notify
     return self
 end
 
@@ -1256,6 +1276,7 @@ function Module:SetEnabled(enabled, silent)
     if not silent then
         Util.Safe(self.Def.Callback, enabled)
         for _, fn in self._listeners do Util.Safe(fn, enabled) end
+        if self.Notify then self.Window:_toggleNote(self, enabled) end
     end
     if self.Window.Interface.AutoExpand and #self.Children > 0 then self:SetExpanded(enabled) end
     self.Window:_touch(true)
@@ -1287,6 +1308,10 @@ end
 
 function Module:SetFavorite(favorite)
     self.Window:_setFavorite(self, favorite and true or false)
+end
+
+function Module:SetNotify(on)
+    if self.Toggleable then self.Window:_setNotify(self, on and true or false) end
 end
 
 function Module:SetTitle(text)
@@ -1362,6 +1387,9 @@ function Module:_menu(view, point)
         table.insert(items, { Title = self.Enabled and "Disable" or "Enable", Icon = "power", Disabled = self.Locked, Callback = function() self:ToggleEnabled() end })
     end
     table.insert(items, { Title = self.Favorite and "Remove favorite" or "Add to favorites", Icon = "star", Callback = function() self:SetFavorite(not self.Favorite) end })
+    if self.Toggleable then
+        table.insert(items, { Title = self.Notify and "Mute on / off" or "Notify on / off", Icon = self.Notify and "bell-off" or "bell", Callback = function() self:SetNotify(not self.Notify) end })
+    end
     if #self.Children > 0 then
         table.insert(items, { Title = self.Expanded and "Collapse" or "Expand", Icon = "chevrons-up-down", Callback = function() self:SetExpanded(not self.Expanded) end })
     end
@@ -1490,6 +1518,21 @@ function Module:Render(parent, maid, view)
         Parent = right,
     })
     maid:Give(Tooltip.Attach(star, function() return self.Favorite and "Remove from favorites" or "Add to favorites" end))
+    local bell
+    if self.Toggleable then
+        bell = Util.New("ImageButton", {
+            Size = UDim2.fromOffset(14, 14),
+            Image = Util.IconId(self.Notify and "bell-ring" or "bell"),
+            LayoutOrder = 0,
+            Theme = {
+                ImageColor3 = function(t) return self.Notify and t.Accent or t.TextMuted end,
+                ImageTransparency = function() return (self.Notify and 0) or (hover and 0.25) or (Util.Touch() and 0.55) or 1 end,
+            },
+            Parent = right,
+        })
+        maid:Give(Tooltip.Attach(bell, function() return self.Notify and "Mute on / off" or "Notify on / off" end))
+        bell.MouseButton1Click:Connect(function() self:SetNotify(not self.Notify) end)
+    end
     local grip
     if view.Page and view.Page.Draggable then
         grip = Util.New("ImageButton", {
@@ -1658,6 +1701,10 @@ function Module:Render(parent, maid, view)
         if what == "Visible" then card.Visible = self.Visible end
         if what == "Expanded" or what == "Children" then paintBody(what == "Expanded") end
         if what == "Favorite" then Theme.Refresh(star, 0.15) end
+        if what == "Notify" and bell then
+            bell.Image = Util.IconId(self.Notify and "bell-ring" or "bell")
+            Theme.Refresh(bell, 0.15)
+        end
     end
     maid:Give(self.StateChanged:Connect(paint))
     maid:Give(self.Changed:Connect(function(enabled)
@@ -1668,6 +1715,7 @@ function Module:Render(parent, maid, view)
     maid:Give(Util.Hover(card, function(on)
         hover = on
         Theme.Refresh(star, 0.12)
+        if bell then Theme.Refresh(bell, 0.12) end
         if grip then Theme.Refresh(grip, 0.12) end
         Theme.Refresh(stroke, 0.12)
     end))
@@ -1710,8 +1758,10 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Layer = import("Components/Layer")
 
-local Notification = { Position = "BottomRight", Max = 5 }
+-- Scale multiplies every duration (Settings > Notifications); Max is how many show at once
+local Notification = { Position = "BottomRight", Max = 5, Scale = 1 }
 local holder, layout
+local live = {}                                   -- Id -> handle while it is on screen
 
 local KINDS = {
     Info    = { Color = "Accent", Icon = "info" },
@@ -1749,21 +1799,39 @@ function Notification.SetPosition(name)
     layout.VerticalAlignment = corner[3]
 end
 
--- options: Title, Content, Type (Info|Success|Warning|Error), Icon, Duration, Buttons = { { Title, Callback } }
+-- oldest first past Max
+local function trim(keep)
+    local toasts = {}
+    for _, child in holder:GetChildren() do
+        if child:IsA("Frame") and child ~= keep then table.insert(toasts, child) end
+    end
+    table.sort(toasts, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
+    for i = 1, #toasts - math.max(Notification.Max - 1, 0) do toasts[i]:Destroy() end
+end
+
+-- the look an update can change: kind (colour, icon) or explicit Color / Icon
+local function look(options)
+    local kind = KINDS[options.Type or "Info"] or KINDS.Info
+    return options.Color or kind.Color, options.Icon or kind.Icon
+end
+
+-- options: Title, Content, Type (Info|Success|Warning|Error), Icon, Color (theme token or Color3), Duration,
+--          Id (a toast with the same Id still on screen is updated in place: text, look and a fresh timer),
+--          Buttons = { { Title, Callback } }
 function Notification.Notify(options)
     ensure()
     options = type(options) == "string" and { Title = options } or options
-    local kind = KINDS[options.Type or "Info"] or KINDS.Info
-    local duration = options.Duration or 5
-    local side = CORNERS[Notification.Position][4]
-
-    local toasts = {}
-    for _, child in holder:GetChildren() do
-        if child:IsA("Frame") then table.insert(toasts, child) end
+    local current = options.Id ~= nil and live[options.Id]
+    if current then
+        current:Update(options)
+        return current
     end
-    if #toasts >= Notification.Max then
-        table.sort(toasts, function(a, b) return a.LayoutOrder < b.LayoutOrder end)
-        toasts[1]:Destroy()
+    trim()
+    local side = CORNERS[Notification.Position][4]
+    local state = {}
+    state.Color, state.Icon = look(options)
+    local function tint(t)
+        return typeof(state.Color) == "Color3" and state.Color or t[state.Color] or t.Accent
     end
 
     local wrapper = Util.New("Frame", {
@@ -1788,17 +1856,17 @@ function Notification.Notify(options)
     Util.Corner("ElementRadius", card)
     Util.Stroke(card)
 
-    Util.New("Frame", {
+    local bar = Util.New("Frame", {
         Size = UDim2.new(0, 3, 1, -18),
         Position = UDim2.fromOffset(9, 9),
         ZIndex = 152,
-        Theme = { BackgroundColor3 = kind.Color },
+        Theme = { BackgroundColor3 = tint },
         Parent = card,
     }, { Util.Corner(2) })
-    Util.Icon(options.Icon or kind.Icon, {
+    local icon = Util.Icon(state.Icon, {
         Size = UDim2.fromOffset(16, 16),
         Position = UDim2.fromOffset(21, 12),
-        Color = kind.Color,
+        Theme = { ImageColor3 = tint },
         ZIndex = 152,
         Parent = card,
     })
@@ -1812,7 +1880,7 @@ function Notification.Notify(options)
     })
     Util.Padding(body, 11, 30, 13, 46)
     Util.List(body, 3)
-    Util.Label({
+    local title = Util.Label({
         Text = options.Title or "Notification",
         TextSize = 13,
         Weight = Enum.FontWeight.SemiBold,
@@ -1822,37 +1890,67 @@ function Notification.Notify(options)
         ZIndex = 153,
         Parent = body,
     })
-    if options.Content and options.Content ~= "" then
-        Util.Label({
-            Text = options.Content,
-            TextSize = 12,
-            Color = "TextDim",
-            Size = UDim2.new(1, 0, 0, 0),
-            AutomaticSize = Enum.AutomaticSize.Y,
-            TextWrapped = true,
-            RichText = true,
-            LayoutOrder = 2,
-            ZIndex = 153,
-            Parent = body,
-        })
-    end
+    local content = Util.Label({
+        Text = options.Content or "",
+        TextSize = 12,
+        Color = "TextDim",
+        Size = UDim2.new(1, 0, 0, 0),
+        AutomaticSize = Enum.AutomaticSize.Y,
+        TextWrapped = true,
+        RichText = true,
+        Visible = options.Content ~= nil and options.Content ~= "",
+        LayoutOrder = 2,
+        ZIndex = 153,
+        Parent = body,
+    })
 
     local progress = Util.New("Frame", {
         AnchorPoint = Vector2.new(0, 1),
         Position = UDim2.new(0, 10, 1, -3),
         Size = UDim2.new(1, -20, 0, 2),
         ZIndex = 153,
-        Theme = { BackgroundColor3 = kind.Color, BackgroundTransparency = function() return 0.35 end },
+        Theme = { BackgroundColor3 = tint, BackgroundTransparency = function() return 0.35 end },
         Parent = card,
     }, { Util.Corner(1) })
 
     local closed = false
-    local handle = {}
+    local handle = { Id = options.Id }
+    -- seconds left and the full span, restarted by Update
+    local duration, left = 0, 0
+    local function arm(seconds)
+        seconds = seconds or 5
+        duration = (seconds == math.huge or seconds <= 0) and seconds or seconds * Notification.Scale
+        left = duration
+        progress.Visible = duration ~= math.huge and duration > 0
+        progress.Size = UDim2.new(1, -20, 0, 2)
+    end
+    arm(options.Duration)
+    if options.Id ~= nil then live[options.Id] = handle end
+
     function handle:Close()
         if closed then return end
         closed = true
+        if options.Id ~= nil and live[options.Id] == handle then live[options.Id] = nil end
         Util.Tween(card, 0.35, { Position = UDim2.fromOffset(side * 330, 0) }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
         task.delay(0.36 / math.max(Theme.Current.AnimSpeed or 1, 0.05), function() wrapper:Destroy() end)
+    end
+
+    -- same toast, new text and look; the timer starts over
+    function handle:Update(patch)
+        if closed then return end
+        if patch.Title then title.Text = patch.Title end
+        if patch.Content ~= nil then
+            content.Text = patch.Content
+            content.Visible = patch.Content ~= ""
+        end
+        if patch.Type or patch.Color or patch.Icon then
+            state.Color, state.Icon = look(patch)
+            icon.Image = Util.IconId(state.Icon)
+            Theme.Refresh(bar, 0.15)
+            Theme.Refresh(icon, 0.15)
+            Theme.Refresh(progress, 0.15)
+        end
+        arm(patch.Duration or options.Duration)
     end
 
     if options.Buttons and #options.Buttons > 0 then
@@ -1866,7 +1964,7 @@ function Notification.Notify(options)
         Util.List(row, 6, Enum.FillDirection.Horizontal)
         for index, spec in options.Buttons do
             local style = spec.Style or (index == 1 and "Primary" or "Secondary")
-            local state = { Hover = false }
+            local hover = { Hover = false }
             local button = Util.New("TextButton", {
                 AutomaticSize = Enum.AutomaticSize.X,
                 Size = UDim2.fromOffset(0, 22),
@@ -1875,7 +1973,7 @@ function Notification.Notify(options)
                 Theme = {
                     BackgroundColor3 = function(t)
                         local base = style == "Primary" and t.Accent or (style == "Danger" and t.Danger or t.ElevatedHover)
-                        return state.Hover and base:Lerp(t.Text, 0.12) or base
+                        return hover.Hover and base:Lerp(t.Text, 0.12) or base
                     end,
                     TextColor3 = (style == "Primary" or style == "Danger") and "OnAccent" or "Text",
                     FontFace = Theme.Font(Enum.FontWeight.Medium),
@@ -1886,7 +1984,7 @@ function Notification.Notify(options)
             })
             Util.Corner(5, button)
             Util.Padding(button, 0, 10, 0, 10)
-            Util.Feedback(button, state)
+            Util.Feedback(button, hover)
             button.MouseButton1Click:Connect(function()
                 Util.Safe(spec.Callback)
                 if spec.KeepOpen ~= true then handle:Close() end
@@ -1906,23 +2004,20 @@ function Notification.Notify(options)
 
     Util.Tween(card, 0.45, { Position = UDim2.fromOffset(0, 0) })
 
-    if duration ~= math.huge and duration > 0 then
-        local hovered = false
-        Util.Hover(card, function(on) hovered = on end)
-        task.spawn(function()
-            local left = duration
-            while left > 0 and not closed and wrapper.Parent do
-                local dt = Services.RunService.Heartbeat:Wait()
-                if not hovered then
-                    left -= dt
-                    progress.Size = UDim2.new(math.max(left / duration, 0), -20 * math.max(left / duration, 0), 0, 2)
-                end
+    local hovered = false
+    Util.Hover(card, function(on) hovered = on end)
+    task.spawn(function()
+        while not closed and wrapper.Parent do
+            local dt = Services.RunService.Heartbeat:Wait()
+            if not hovered and duration ~= math.huge and duration > 0 then
+                left -= dt
+                local share = math.max(left / duration, 0)
+                progress.Size = UDim2.new(share, -20 * share, 0, 2)
+                if left <= 0 then break end
             end
-            handle:Close()
-        end)
-    else
-        progress.Visible = false
-    end
+        end
+        handle:Close()
+    end)
     return handle
 end
 
@@ -4134,6 +4229,10 @@ local INTERFACE = {
     HideUser = false,        -- streamer mode: hide name
     HideAvatar = false,
     NotifyPosition = "BottomRight",
+    NotifyDuration = 100,    -- percent of every notification's duration
+    NotifyMax = 5,           -- notifications on screen at once
+    ToggleAlerts = "Always", -- features with the bell on: "Always" | "Hidden" (menu hidden only) | "Off"
+    NotifyConfig = true,     -- "Config loaded" after the autoload config
     BindClickOutside = "Keep",
     BindEscape = "Keep",
     BindMouse = true,
@@ -4177,6 +4276,8 @@ function Window.new(library, def)
     if def.ThemeOverrides then Theme.Set(def.ThemeOverrides) end
     self.Maid:Give(Theme.Changed:Connect(function() self:SaveState() end))
     Notification.SetPosition(self.Interface.NotifyPosition)
+    Notification.Scale = (tonumber(self.Interface.NotifyDuration) or 100) / 100
+    Notification.Max = tonumber(self.Interface.NotifyMax) or 5
 
     self:_build()
     self.Favorites = Page.new(self, {
@@ -4230,6 +4331,7 @@ function Window:_loadState()
     local state = Storage.ReadJSON(self.Folder .. "/ui.json")
     if type(state) ~= "table" then state = {} end
     state.Favorites = type(state.Favorites) == "table" and state.Favorites or {}
+    state.Notify = type(state.Notify) == "table" and state.Notify or {}
     state.Layout = type(state.Layout) == "table" and state.Layout or {}
     state.Interface = type(state.Interface) == "table" and state.Interface or {}
     for _, key in { "SubTabs", "Panels" } do
@@ -5153,6 +5255,29 @@ function Window:_setFavorite(module, favorite)
     self:SaveState()
 end
 
+-- the bell on a card: its own on / off flips show a notification
+function Window:_setNotify(module, on)
+    if module.Notify == on then return end
+    module.Notify = on
+    self.State.Notify[module.Id] = on
+    module.StateChanged:Fire("Notify")
+    self:SaveState()
+end
+
+-- one notification per feature: a fast on / off / on updates it instead of stacking
+function Window:_toggleNote(owner, enabled)
+    local mode = self.Interface.ToggleAlerts
+    if mode == "Off" or (mode == "Hidden" and self.Visible) or self.Config._loading then return end
+    Notification.Notify({
+        Id = owner,
+        Title = owner.Title,
+        Content = enabled and "On" or "Off",
+        Color = enabled and "Success" or "Danger",
+        Icon = enabled and "toggle-right" or "toggle-left",
+        Duration = 2,
+    })
+end
+
 function Window:ClearFavorites()
     for _, module in self:Modules() do
         if module.Favorite then self:_setFavorite(module, false) end
@@ -5281,7 +5406,9 @@ function Window:LoadAutoload()
     if not name then return false end
     local ok, err = self.Config:Load(name)
     if ok then
-        self.Library:Notify({ Title = "Config loaded", Content = name, Type = "Success", Duration = 3 })
+        if self.Interface.NotifyConfig ~= false then
+            self.Library:Notify({ Title = "Config loaded", Content = name, Type = "Success", Duration = 3 })
+        end
     else
         self.Library:Notify({ Title = "Autoload failed", Content = err, Type = "Error" })
     end
@@ -5871,6 +5998,7 @@ return {
     ["move"]                   = "rbxassetid://116138709011735",
     ["music"]                  = "rbxassetid://113343203848535",
     ["navigation"]             = "rbxassetid://79308213542922",
+    ["orbit"]                  = "rbxassetid://108926136860562",
     ["package"]                = "rbxassetid://97261141732706",
     ["paintbrush"]             = "rbxassetid://125572663700289",
     ["palette"]                = "rbxassetid://86350350950064",
@@ -6837,10 +6965,21 @@ function Util.Feedback(button, state, refresh)
     return state
 end
 
+-- user code runs on a thread of its own: a callback that changes its thread's identity (game code can) never
+-- costs the library's thread its access to the gui. Returns the callback's results if it finished without yielding
 function Util.Safe(fn, ...)
     if type(fn) ~= "function" then return end
-    local ok, err = xpcall(fn, debug.traceback, ...)
-    if not ok then warn("[OasisUI] callback error: " .. tostring(err)) end
+    local results
+    task.spawn(function(...)
+        local out = table.pack(xpcall(fn, debug.traceback, ...))
+        if out[1] then
+            results = out
+        else
+            warn("[OasisUI] callback error: " .. tostring(out[2]))
+        end
+    end, ...)
+    if results then return table.unpack(results, 2, results.n) end
+    return nil
 end
 
 function Util.Round(value, step)
@@ -9837,7 +9976,8 @@ local ColorPicker = import("Elements/ColorPicker")
 
 -- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }),
 --      Field (a value box in the same row, set while off too: Input options plus Width),
---      Color (a colour swatch in the same row: ColorPicker options with their own Flag), Listed, Callback(value)
+--      Color (a colour swatch in the same row: ColorPicker options with their own Flag), Listed,
+--      Notify (a notification on every on / off, replaced while it shows), Callback(value)
 local Toggle = Base.Class("Toggle")
 
 function Toggle.new(container, def)
@@ -9894,6 +10034,7 @@ function Toggle:Set(value, silent)
     value = value and true or false
     if value == self.Value then return end
     self:_commit(value, silent)
+    if self.Def.Notify and not silent then self.Window:_toggleNote(self, value) end
 end
 
 function Toggle:Save()
@@ -10172,5 +10313,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.6.0"
+Library.Version = "1.7.0"
 return Library

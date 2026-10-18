@@ -8,7 +8,8 @@ local ColorPicker = import("Elements/ColorPicker")
 
 -- def: Title, Description, Default, Style ("Switch" | "Checkbox"), Keybind (true | key | { Key, Mode }),
 --      Field (a value box in the same row, set while off too: Input options plus Width),
---      Color (a colour swatch in the same row: ColorPicker options with their own Flag), Listed, Callback(value)
+--      Color (a colour swatch in the same row: ColorPicker options with their own Flag), Listed,
+--      Notify (a notification on every on / off, replaced while it shows), Callback(value)
 local Toggle = Base.Class("Toggle")
 
 function Toggle.new(container, def)
@@ -65,6 +66,7 @@ function Toggle:Set(value, silent)
     value = value and true or false
     if value == self.Value then return end
     self:_commit(value, silent)
+    if self.Def.Notify and not silent then self.Window:_toggleNote(self, value) end
 end
 
 function Toggle:Save()

@@ -251,7 +251,7 @@ do
     walk:Slider({ Title = "Speed", Min = 16, Max = 200, Default = 32, Buttons = true, Flag = "WalkSpeedValue", Callback = report("Speed") })
     local jump = PlayerTab:Module({ Title = "Jump power", Flag = "JumpPower", Side = "Left", Callback = report("Jump power") })
     jump:Slider({ Title = "Power", Min = 50, Max = 300, Default = 80, Flag = "JumpPowerValue", Callback = report("Power") })
-    local fly = PlayerTab:Module({ Title = "Fly", Description = "WASD to move, space and shift for height.", Flag = "Fly", Keybind = { Key = Enum.KeyCode.F }, Side = "Right", Callback = report("Fly") })
+    local fly = PlayerTab:Module({ Title = "Fly", Description = "WASD to move, space and shift for height.", Flag = "Fly", Keybind = { Key = Enum.KeyCode.F }, Notify = true, Side = "Right", Callback = report("Fly") })
     fly:Slider({ Title = "Speed", Min = 10, Max = 300, Default = 60, Flag = "FlySpeed", Callback = report("Fly speed") })
     fly:Segmented({ Title = "Mode", Values = { "Velocity", "CFrame" }, Flag = "FlyMode", Callback = report("Fly mode") })
     PlayerTab:Module({ Title = "Noclip", Flag = "Noclip", Keybind = { Key = Enum.KeyCode.N }, Side = "Right", Callback = report("Noclip") })
@@ -511,7 +511,13 @@ do
             },
         })
     end })
-    toasts:Label({ Text = "The position is set in Settings → Menu." })
+    local count = 0
+    toasts:Button({ Title = "Same Id", Icon = "refresh-cw", Callback = function()
+        count += 1
+        -- a toast with this Id still on screen is updated and its timer starts over
+        OasisUI:Notify({ Id = "counter", Title = "Counter", Content = "Pressed " .. count .. " times.", Type = count % 2 == 0 and "Success" or "Info", Duration = 3 })
+    end })
+    toasts:Label({ Text = "Position, duration and the bell's on / off messages: Settings → Menu → Notifications." })
 
     local dialogs = Feedback:Section({ Title = "Dialogs", Icon = "message-square", Side = "Left" })
     dialogs:Button({ Title = "Confirm", Callback = function()

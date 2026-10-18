@@ -43,6 +43,10 @@ local INTERFACE = {
     HideUser = false,        -- streamer mode: hide name
     HideAvatar = false,
     NotifyPosition = "BottomRight",
+    NotifyDuration = 100,    -- percent of every notification's duration
+    NotifyMax = 5,           -- notifications on screen at once
+    ToggleAlerts = "Always", -- features with the bell on: "Always" | "Hidden" (menu hidden only) | "Off"
+    NotifyConfig = true,     -- "Config loaded" after the autoload config
     BindClickOutside = "Keep",
     BindEscape = "Keep",
     BindMouse = true,
@@ -86,6 +90,8 @@ function Window.new(library, def)
     if def.ThemeOverrides then Theme.Set(def.ThemeOverrides) end
     self.Maid:Give(Theme.Changed:Connect(function() self:SaveState() end))
     Notification.SetPosition(self.Interface.NotifyPosition)
+    Notification.Scale = (tonumber(self.Interface.NotifyDuration) or 100) / 100
+    Notification.Max = tonumber(self.Interface.NotifyMax) or 5
 
     self:_build()
     self.Favorites = Page.new(self, {
@@ -139,6 +145,7 @@ function Window:_loadState()
     local state = Storage.ReadJSON(self.Folder .. "/ui.json")
     if type(state) ~= "table" then state = {} end
     state.Favorites = type(state.Favorites) == "table" and state.Favorites or {}
+    state.Notify = type(state.Notify) == "table" and state.Notify or {}
     state.Layout = type(state.Layout) == "table" and state.Layout or {}
     state.Interface = type(state.Interface) == "table" and state.Interface or {}
     for _, key in { "SubTabs", "Panels" } do
@@ -1062,6 +1069,29 @@ function Window:_setFavorite(module, favorite)
     self:SaveState()
 end
 
+-- the bell on a card: its own on / off flips show a notification
+function Window:_setNotify(module, on)
+    if module.Notify == on then return end
+    module.Notify = on
+    self.State.Notify[module.Id] = on
+    module.StateChanged:Fire("Notify")
+    self:SaveState()
+end
+
+-- one notification per feature: a fast on / off / on updates it instead of stacking
+function Window:_toggleNote(owner, enabled)
+    local mode = self.Interface.ToggleAlerts
+    if mode == "Off" or (mode == "Hidden" and self.Visible) or self.Config._loading then return end
+    Notification.Notify({
+        Id = owner,
+        Title = owner.Title,
+        Content = enabled and "On" or "Off",
+        Color = enabled and "Success" or "Danger",
+        Icon = enabled and "toggle-right" or "toggle-left",
+        Duration = 2,
+    })
+end
+
 function Window:ClearFavorites()
     for _, module in self:Modules() do
         if module.Favorite then self:_setFavorite(module, false) end
@@ -1190,7 +1220,9 @@ function Window:LoadAutoload()
     if not name then return false end
     local ok, err = self.Config:Load(name)
     if ok then
-        self.Library:Notify({ Title = "Config loaded", Content = name, Type = "Success", Duration = 3 })
+        if self.Interface.NotifyConfig ~= false then
+            self.Library:Notify({ Title = "Config loaded", Content = name, Type = "Success", Duration = 3 })
+        end
     else
         self.Library:Notify({ Title = "Autoload failed", Content = err, Type = "Error" })
     end

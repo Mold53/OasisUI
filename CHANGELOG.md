@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-10-18
+
+### Added
+
+- Notification `Id`: a notification with the `Id` of one still on screen updates it in place (title, content,
+  colour, icon) and starts its timer over, so fast repeats do not stack. `handle:Update(options)` does the same.
+  `Color` (a theme token or a Color3) overrides the colour of `Type`.
+- The bell on a module card: while it is on, every on / off of the card shows one notification ("On" in green,
+  "Off" in red) that the next flip replaces. Saved per card; module option `Notify` sets the default,
+  `Module:SetNotify(bool)` and the card's right-click menu switch it. Toggle option `Notify` does the same for a
+  toggle row. A config load never notifies.
+- Settings > Menu > Notifications: position (with the test bell), duration (50-300 %), how many show at once,
+  the bell's on / off messages (always, only while the menu is hidden, off) and the "Config loaded" message.
+  `Window.NotifySettings` is that group, for a script's own rows.
+
+### Fixed
+
+- A dropdown stayed open and stopped working when its callback ran game code that changed the thread's
+  identity (it lost access to the gui, so closing it failed). Callbacks now run on a thread of their own;
+  one that finishes without yielding still runs before the next line of the library.
+
 ## [1.6.0] - 2026-10-13
 
 ### Added
