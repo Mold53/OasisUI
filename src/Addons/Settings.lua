@@ -286,8 +286,10 @@ return function(window)
     -- menu --------------------------------------------------------------------
     local menu = tab:Section({ Title = "Menu", Icon = "sliders-horizontal", Side = "Right", Id = "settings/menu" })
     menu:Keybind({ Title = "Menu key", Binding = window.MenuBinding })
-    menu:Dropdown({
-        Title = "Notifications",
+    -- scripts add their own rows here (window.NotifySettings), e.g. a toggle for their load message
+    local alerts = menu:Group({ Title = "Notifications", Icon = "bell" })
+    alerts:Dropdown({
+        Title = "Position",
         Values = { "BottomRight", "TopRight", "BottomLeft", "TopLeft" },
         Default = interface.NotifyPosition,
         Callback = function(position)
@@ -298,6 +300,22 @@ return function(window)
             notify("Notification", "This is how messages look.", "Info")
         end },
     })
+    alerts:Slider({ Title = "Duration", Min = 50, Max = 300, Step = 10, Suffix = "%", Default = interface.NotifyDuration,
+        Callback = function(value)
+            Notification.Scale = value / 100
+            window:SetInterface("NotifyDuration", value)
+        end })
+    alerts:Slider({ Title = "On screen", Min = 1, Max = 8, Default = interface.NotifyMax,
+        Callback = function(value)
+            Notification.Max = value
+            window:SetInterface("NotifyMax", value)
+        end })
+    alerts:Segmented({ Title = "Feature on / off", Values = { "Always", "Hidden", "Off" }, Default = interface.ToggleAlerts,
+        Tooltip = "Cards with the bell on. Hidden: only while the menu is hidden.",
+        Callback = function(value) window:SetInterface("ToggleAlerts", value) end })
+    alerts:Toggle({ Title = "Config loaded", Default = interface.NotifyConfig ~= false,
+        Callback = function(on) window:SetInterface("NotifyConfig", on) end })
+    window.NotifySettings = alerts
     menu:Buttons({
         { Title = "Center", Icon = "move", Callback = function() window:Center() end },
         { Title = "Reset layout", Icon = "layout-grid", Confirm = "Confirm", Callback = function()

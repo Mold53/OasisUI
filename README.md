@@ -96,7 +96,8 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
   layout (name, key and mode in any order), mode text (full, short or hidden), key style, size, width,
   transparency, title bar, menu key, hide while the menu is open.
 - **Other overlays**: watermark (title, custom text, FPS, ping, time, name), notifications (four types,
-  buttons with hover and press feedback, pause on hover), dialogs with an optional text input (Enter
+  buttons with hover and press feedback, pause on hover, updated in place by `Id`, a bell per card for on / off
+  messages; position, duration and count in Settings), dialogs with an optional text input (Enter
   submits), context menus, tooltips.
 - **Window**: drag, resize, minimize to a title pill, hide with the menu key, fit to small screens, and a
   menu button on touch devices. Profile card with custom name, subtitle and avatar, or hidden; streamer
@@ -175,6 +176,7 @@ local Module = Aimbot:Module({
     Risky = false,                        -- red title
     Side = "Left",                        -- first placement; the user's layout wins afterwards
     Color = nil,                          -- { ColorPicker options }: a colour swatch next to the switch, own Flag
+    Notify = false,                       -- default of the card's bell: a notification on every on / off
     Opened = nil,                         -- force the settings open/closed initially
     Callback = function(enabled) end,
 })
@@ -187,7 +189,7 @@ sub-tabs move into a first sub-tab named `MainTitle` (default "General"). `Tab:S
 or sub-tab without removing it.
 
 Module methods: `Get()`, `Set(bool)`, `SetEnabled(bool)`, `ToggleEnabled()`, `OnChanged(fn)`,
-`SetExpanded(bool)`, `SetFavorite(bool)`, `SetLocked(bool)`, `SetVisible(bool)`, `SetTitle`,
+`SetExpanded(bool)`, `SetFavorite(bool)`, `SetNotify(bool)`, `SetLocked(bool)`, `SetVisible(bool)`, `SetTitle`,
 `SetDescription`, `Reset()` (module and all of its elements), `Destroy()`, `Binding` (see Keybinds).
 
 Modules, sections, groups and panels take elements with `Module:Toggle({...})` or `Module:AddToggle({...})`.
@@ -199,10 +201,12 @@ Shared options: `Title`, `Description`, `Tooltip`, `Flag` (saved in configs, rea
 `OasisUI.Flags[flag]`), `Callback`, `Locked`, `LockedReason`, `Visible`, `Risky`.
 Shared methods: `Get()`, `Set(value, silent?)`, `Reset()`, `OnChanged(fn)`, `SetTitle`, `SetDescription`,
 `SetLocked(bool, reason?)`, `SetVisible(bool)`, `DependsOn(element, predicate?, "Lock" | "Hide")`, `Destroy()`.
+Callbacks run on a thread of their own, so game code in a callback that changes the thread's identity cannot
+break the menu; one that does not yield has finished before the library goes on.
 
 | Element | Options | Extra methods |
 | --- | --- | --- |
-| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }`, `Listed`, `Field = { Input options, Width }` (a value box in the row, settable while off, with its own `Flag`), `Color = { ColorPicker options }` (a colour swatch in the row, with its own `Flag`) | `Binding`, `Field` (the value box, an Input), `Color` (the swatch, a ColorPicker) |
+| `Toggle` / `Checkbox` | `Default`, `Style = "Switch" \| "Checkbox"`, `Keybind = true \| key \| { Key, Mode, Modes, … }`, `Listed`, `Field = { Input options, Width }` (a value box in the row, settable while off, with its own `Flag`), `Color = { ColorPicker options }` (a colour swatch in the row, with its own `Flag`), `Notify` (a notification on every on / off) | `Binding`, `Field` (the value box, an Input), `Color` (the swatch, a ColorPicker) |
 | `Button` | `Icon`, `Style = "Default" \| "Primary" \| "Danger" \| "Ghost"`, `Confirm = true \| text`, `Keybind` | `Press()` |
 | `Buttons` | list of `{ Title, Icon, Style, Confirm, Callback }` | `SetButtonTitle(i, text)`, `SetButtonLocked(i, bool)` |
 | `Slider` | `Min`, `Max`, `Default`, `Step` or `Rounding`, `Prefix`, `Suffix`, `Format(v)`, `Input` (editable value, default on), `Buttons` (−/+), `Icons = { From, To }`, `ShowRange`, `Live` (default on) | `SetMin`, `SetMax` |
@@ -334,7 +338,11 @@ later change goes into the loaded config.
 
 ## Library
 
-`OasisUI:Notify({ Title, Content, Type = "Info" | "Success" | "Warning" | "Error", Icon, Duration, Buttons = { { Title, Style, Callback, KeepOpen } } })`,
+`OasisUI:Notify({ Title, Content, Type = "Info" | "Success" | "Warning" | "Error", Icon, Color, Duration, Id, Buttons = { { Title, Style, Callback, KeepOpen } } })`
+returns a handle with `Close()` and `Update(options)`; a call with the `Id` of a notification still on screen
+updates that one and restarts its timer. Settings > Menu > Notifications scales every duration and caps how many
+show at once; `Window.NotifySettings` is that group, for a script's own rows.
+
 `OasisUI:GetFlag(flag)`, `OasisUI:SetFlag(flag, value)`, `OasisUI:IsCapturing()` (a bind is waiting for its key), `OasisUI:AddIcons({ name = "rbxassetid://…" })`,
 `OasisUI:SetTheme(name)`, `OasisUI:SetAccent(color)`, `OasisUI:Toggle()`, `OasisUI:Unload()` (alias `Destroy`),
 `OasisUI:OnUnload(fn)`, `OasisUI.Flags`, `OasisUI.Version`.

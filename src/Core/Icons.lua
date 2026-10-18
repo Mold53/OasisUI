@@ -127,6 +127,7 @@ return {
     ["move"]                   = "rbxassetid://116138709011735",
     ["music"]                  = "rbxassetid://113343203848535",
     ["navigation"]             = "rbxassetid://79308213542922",
+    ["orbit"]                  = "rbxassetid://108926136860562",
     ["package"]                = "rbxassetid://97261141732706",
     ["paintbrush"]             = "rbxassetid://125572663700289",
     ["palette"]                = "rbxassetid://86350350950064",

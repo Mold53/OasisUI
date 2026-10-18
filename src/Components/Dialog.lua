@@ -186,9 +186,7 @@ function Dialog.Open(root, options)
             if closed then return end
             local keep = false
             if spec.Callback then
-                local ok, result = pcall(spec.Callback, box and box.Text or nil, handle)
-                if not ok then warn("[OasisUI] dialog callback: " .. tostring(result)) end
-                keep = result == false
+                keep = Util.Safe(spec.Callback, box and box.Text or nil, handle) == false
             end
             if not keep then handle:Close() end
         end

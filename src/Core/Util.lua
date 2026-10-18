@@ -264,10 +264,21 @@ function Util.Feedback(button, state, refresh)
     return state
 end
 
+-- user code runs on a thread of its own: a callback that changes its thread's identity (game code can) never
+-- costs the library's thread its access to the gui. Returns the callback's results if it finished without yielding
 function Util.Safe(fn, ...)
     if type(fn) ~= "function" then return end
-    local ok, err = xpcall(fn, debug.traceback, ...)
-    if not ok then warn("[OasisUI] callback error: " .. tostring(err)) end
+    local results
+    task.spawn(function(...)
+        local out = table.pack(xpcall(fn, debug.traceback, ...))
+        if out[1] then
+            results = out
+        else
+            warn("[OasisUI] callback error: " .. tostring(out[2]))
+        end
+    end, ...)
+    if results then return table.unpack(results, 2, results.n) end
+    return nil
 end
 
 function Util.Round(value, step)
