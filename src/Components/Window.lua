@@ -27,6 +27,9 @@ Window.__index = Window
 
 local TOP = 50
 local COMPACT = 56
+local SLIDE = 12           -- px the window travels when it opens and closes
+local CENTER = Vector2.new(0.5, 0.5)
+local TITLE_RATE = 1 / 30  -- s between steps of the animated title: every step redraws the window
 local MIN_SIZE = Vector2.new(560, 380)
 
 local INTERFACE = {
@@ -72,6 +75,7 @@ function Window.new(library, def)
         Panels = {},
         ScreenButtons = {},
         _binds = {},
+        _queryLabels = {},  -- row titles; a search highlights the matching ones
         Visible = true,
         Minimized = false,
     }, Window)
@@ -135,7 +139,7 @@ function Window.new(library, def)
     if def.AutoLoad ~= false then
         task.defer(function() self:LoadAutoload() end)
     end
-    self:_open()
+    self:_slide(true)
     return self
 end
 
@@ -313,10 +317,13 @@ function Window:_build()
         },
         Parent = title,
     })
+    local titleStep = 0
     self.Maid:Give(Services.RunService.Heartbeat:Connect(function()
-        if Theme.Current.AnimatedTitle and root.Visible then
-            titleGradient.Offset = Vector2.new(math.sin(os.clock() * 1.3) * 0.5, 0)
-        end
+        if not (Theme.Current.AnimatedTitle and self.Visible) then return end
+        local now = os.clock()
+        if now - titleStep < TITLE_RATE then return end
+        titleStep = now
+        titleGradient.Offset = Vector2.new(math.sin(now * 1.3) * 0.5, 0)
     end))
     for index, tag in def.Tags or {} do
         tag = type(tag) == "string" and { Text = tag } or tag
@@ -411,7 +418,7 @@ function Window:_build()
     self.Maid:Give(UIS.InputBegan:Connect(function(input)
         -- SearchShortcut = false keeps the bar but frees Ctrl+F
         if def.Search == false or def.SearchShortcut == false then return end
-        if input.KeyCode == Enum.KeyCode.F and root.Visible and not self.Minimized
+        if input.KeyCode == Enum.KeyCode.F and self.Visible and not self.Minimized
             and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
             task.defer(function() searchBox:CaptureFocus() end)
         end
@@ -869,10 +876,33 @@ function Window:SetMinimized(minimized)
     end
 end
 
-function Window:_open()
-    self.Root.Visible = true
-    self.UIScale.Scale = self:GetScale() * 0.92
-    Util.Tween(self.UIScale, 0.35, { Scale = self:GetScale() }, Enum.EasingStyle.Back)
+-- open / close: the window slides a few pixels. A move needs no new layout; a scale laid out every element
+-- (and every hidden page) again on every frame of the animation. It runs on the anchor point, so Position
+-- stays the window's place for drags and saves
+function Window:_slide(visible)
+    local root = self.Root
+    local running = self._slideTween
+    if running then running:Cancel() end
+    self._slideTween = nil
+    local function done()
+        root.AnchorPoint = CENTER
+        root.Visible = self.Visible
+    end
+    if (Theme.Current.AnimSpeed or 1) <= 0 then return done() end
+    local away = Vector2.new(0.5, 0.5 - SLIDE / math.max(root.Size.Y.Offset, 1))
+    if visible then
+        -- from rest it starts below; a close that is still running turns around where it is
+        if not running then root.AnchorPoint = away end
+        root.Visible = true
+    end
+    local tween = Util.Tween(root, visible and 0.3 or 0.18, { AnchorPoint = visible and CENTER or away }, Enum.EasingStyle.Quint,
+        visible and Enum.EasingDirection.Out or Enum.EasingDirection.In)
+    self._slideTween = tween
+    tween.Completed:Once(function(state)
+        if state ~= Enum.PlaybackState.Completed or self._slideTween ~= tween then return end
+        self._slideTween = nil
+        done()
+    end)
 end
 
 function Window:SetVisible(visible)
@@ -881,13 +911,7 @@ function Window:SetVisible(visible)
     self.Visible = visible
     Popup.CloseAll()
     Tooltip.Hide()
-    if visible then
-        self:_open()
-    else
-        local tween = Util.Tween(self.UIScale, 0.18, { Scale = self:GetScale() * 0.94 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        local function hide() if not self.Visible then self.Root.Visible = false end end
-        if tween then tween.Completed:Once(hide) else hide() end
-    end
+    self:_slide(visible)
     self.Acrylic:SetVisible(visible)
     for _, panel in self.Panels do panel:SetVisible(panel.Visible) end
     for _, button in self.ScreenButtons do button:Refresh() end
@@ -960,13 +984,13 @@ function Window:_showPage(target)
     Popup.CloseAll()
     local frame = target.Frame
     for _, other in { self.Favorites, self.SearchPage } do
-        if other and other.Frame ~= frame then other.Frame.Visible = false end
+        if other and other.Frame ~= frame then Page.SetShown(other.Frame, false) end
     end
     for _, tab in self.Tabs do
-        if tab.Frame ~= frame then tab.Frame.Visible = false end
+        if tab.Frame ~= frame then Page.SetShown(tab.Frame, false) end
     end
     if not frame.Visible then
-        frame.Visible = true
+        Page.SetShown(frame, true)
         frame.Position = UDim2.fromOffset(0, 10)
         Util.Tween(frame, 0.3, { Position = UDim2.new() })
     end
@@ -982,7 +1006,7 @@ function Window:_select(entry, page, id)
         self._searching = false
         self.Query = nil
         self.SearchPage:Clear()
-        task.defer(Theme.Apply)
+        self:_paintQuery()
     end
     self:_showPage(page)
     if id then
@@ -1111,10 +1135,20 @@ function Window:_removeModule(module)
     if bind then table.remove(self._binds, bind) end
 end
 
+-- the query only colours row titles: those are repainted, not the whole theme
+function Window:_paintQuery()
+    if self._queryQueued then return end
+    self._queryQueued = true
+    task.defer(function()
+        self._queryQueued = false
+        for label in self._queryLabels do Theme.Refresh(label) end
+    end)
+end
+
 function Window:_search(text)
     local query = text:lower():match("^%s*(.-)%s*$")
     self.Query = query ~= "" and query or nil
-    task.defer(Theme.Apply)
+    self:_paintQuery()
     if query == "" then
         if self._searching then
             self._searching = false

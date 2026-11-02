@@ -88,9 +88,9 @@ function Tab:_enableSubTabs()
         Name = "SubTabs",
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
-        Visible = self.Page.Frame.Visible,
         Parent = window.Content,
     })
+    Page.SetShown(holder, self.Page.Frame.Visible)
     local bar = Util.New("ScrollingFrame", {
         Name = "Bar",
         Size = UDim2.new(1, 0, 0, BAR),
@@ -128,7 +128,7 @@ function Tab:_enableSubTabs()
     else
         -- the tab's own page goes unused; a tab shown before its first sub-tab (first or restored tab) left it
         -- visible on top of every page, where its empty columns swallowed the mouse wheel
-        self.Page.Frame.Visible = false
+        Page.SetShown(self.Page.Frame, false)
     end
 end
 
@@ -199,7 +199,7 @@ function Tab:_showSub(sub, silent)
     self.ActiveSub = sub
     for _, other in self.SubTabs do
         local selected = other == sub
-        other.Page.Frame.Visible = selected
+        Page.SetShown(other.Page.Frame, selected)
         if other.Chip.State.Selected ~= selected then
             other.Chip.State.Selected = selected
             other.Chip.Paint()

@@ -324,8 +324,6 @@ function Module:Render(parent, maid, view)
         Util.Padding(tag, 0, 6, 0, 6)
         Util.Label({ Text = self.Tab.Path or self.Tab.Title, TextSize = 10, Color = "TextMuted", Weight = Enum.FontWeight.Medium, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = tag })
     end
-    local lockIcon = Util.Icon("lock", { Size = UDim2.fromOffset(12, 12), Color = "Danger", LayoutOrder = 4, Visible = self.Locked, Parent = left })
-
     local right = Util.New("Frame", { BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = 2, Parent = line })
     Util.List(right, 4, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
     local star = Util.New("ImageButton", {
@@ -458,19 +456,29 @@ function Module:Render(parent, maid, view)
     Util.List(options, 9)
     self:_mountChildren(options, maid)
 
-    local lockShade = Util.New("TextButton", {
-        Name = "Lock",
-        Size = UDim2.fromScale(1, 1),
-        ZIndex = 30,
-        Visible = self.Locked,
-        Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.45 end },
-        Parent = body,
-    })
-    local function lockText()
-        return Util.Touch() and "Locked. Hold the header to unlock." or "Locked. Right-click the header to unlock."
+    -- built on first lock: most cards never get one
+    local lockIcon, lockShade
+    local function lock()
+        if not lockShade then
+            if not self.Locked then return end
+            lockIcon = Util.Icon("lock", { Size = UDim2.fromOffset(12, 12), Color = "Danger", LayoutOrder = 4, Parent = left })
+            lockShade = Util.New("TextButton", {
+                Name = "Lock",
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 30,
+                Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.45 end },
+                Parent = body,
+            })
+            local function lockText()
+                return Util.Touch() and "Locked. Hold the header to unlock." or "Locked. Right-click the header to unlock."
+            end
+            maid:Give(Tooltip.Attach(lockShade, lockText))
+            lockShade.MouseButton1Click:Connect(function() Tooltip.Show(lockText()) end)
+        end
+        lockIcon.Visible = self.Locked
+        lockShade.Visible = self.Locked
     end
-    maid:Give(Tooltip.Attach(lockShade, lockText))
-    lockShade.MouseButton1Click:Connect(function() Tooltip.Show(lockText()) end)
+    lock()
 
     local animating = 0
     local function height()
@@ -516,8 +524,7 @@ function Module:Render(parent, maid, view)
             desc.Visible = self:_showDescription()
         end
         if what == nil or what == "Locked" then
-            lockIcon.Visible = self.Locked
-            lockShade.Visible = self.Locked
+            lock()
             Theme.Refresh(title, 0.15)
         end
         if what == "Visible" then card.Visible = self.Visible end

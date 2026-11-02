@@ -145,7 +145,7 @@ function Acrylic:_window()
         else
             restore()
         end
-        Theme.Set({ _windowBlur = visible })
+        self:_tint(visible)
     end
     table.insert(connections, camera:GetPropertyChangedSignal("CFrame"):Connect(place))
     table.insert(connections, camera:GetPropertyChangedSignal("FieldOfView"):Connect(place))
@@ -164,8 +164,16 @@ function Acrylic:_window()
         restore()
         part:Destroy()
         depth:Destroy()
-        Theme.Set({ _windowBlur = false })
+        self:_tint(false)
     end
+end
+
+-- the window's background lets the blur through; only the window reads the token, so no theme-wide repaint
+-- (which would also save the theme) runs on every open and close
+function Acrylic:_tint(on)
+    if Theme.Current._windowBlur == on then return end
+    Theme.Current._windowBlur = on
+    Theme.Refresh(self.Frame)
 end
 
 function Acrylic:SetMode(mode)

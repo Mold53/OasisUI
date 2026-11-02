@@ -61,12 +61,24 @@ local function resolve(token)
 end
 Theme.Resolve = resolve
 
+-- a token's value, nil when its function fails
+local function value(token, current)
+    if type(token) ~= "function" then return current[token] end
+    local ok, result = pcall(token, current)
+    if ok then return result end
+    return nil
+end
+
+local function set(inst, prop, v)
+    inst[prop] = v
+end
+
+-- runs for every bound instance on a theme change: no closure per property
 local function paint(inst, map)
+    local current = Theme.Current
     for prop, token in map do
-        local ok, value = pcall(resolve, token)
-        if ok and value ~= nil then
-            pcall(function() inst[prop] = value end)
-        end
+        local v = value(token, current)
+        if v ~= nil then pcall(set, inst, prop, v) end
     end
 end
 
@@ -99,14 +111,15 @@ function Theme.Refresh(inst, time)
         return
     end
     local goal = {}
+    local current = Theme.Current
     for prop, token in bound do
-        local ok, value = pcall(resolve, token)
-        if ok and value ~= nil then
-            local kind = typeof(value)
+        local v = value(token, current)
+        if v ~= nil then
+            local kind = typeof(v)
             if kind == "Color3" or kind == "number" or kind == "UDim" or kind == "UDim2" or kind == "Vector2" then
-                goal[prop] = value
+                goal[prop] = v
             else
-                pcall(function() inst[prop] = value end)
+                pcall(set, inst, prop, v)
             end
         end
     end
@@ -156,9 +169,29 @@ function Theme.UsePalette(name)
     return true
 end
 
+-- one Font per family, weight and style: every label repaints its font on a theme change
+local fonts = {}
+
 function Theme.Font(weight, style)
+    weight, style = weight or Enum.FontWeight.Regular, style or Enum.FontStyle.Normal
     return function(current)
-        return Font.new("rbxasset://fonts/families/" .. tostring(current.Font) .. ".json", weight or Enum.FontWeight.Regular, style or Enum.FontStyle.Normal)
+        local family = tostring(current.Font)
+        local byWeight = fonts[family]
+        if not byWeight then
+            byWeight = {}
+            fonts[family] = byWeight
+        end
+        local byStyle = byWeight[weight]
+        if not byStyle then
+            byStyle = {}
+            byWeight[weight] = byStyle
+        end
+        local font = byStyle[style]
+        if not font then
+            font = Font.new("rbxasset://fonts/families/" .. family .. ".json", weight, style)
+            byStyle[style] = font
+        end
+        return font
     end
 end
 

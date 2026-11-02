@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2026-11-02
+
+Performance update: the same settings cost less, and opening or closing the menu no longer drops frames.
+Measured in a hub of about 10,000 instances: the worst frame while opening went from 26 ms to 10 ms with
+animations on (the animation itself from ~18 ms frames to ~3.4 ms) and from 25 ms to 10 ms with animations off.
+
+### Changed
+
+- The window slides a few pixels when it opens and closes instead of scaling. Every scale step made Roblox lay
+  out every element of every tab again, hidden tabs included. With animations off nothing moves or scales.
+- A hidden page keeps its last pixel size, so resizing the window and the compact sidebar animation lay out
+  the shown page only (worst frame 16 ms → 6 ms).
+- The animated title moves 30 times a second and stops while the menu is hidden; each move redraws the
+  window, which was the whole idle cost of an open menu.
+- A search repaints the titles of rows only, not the whole theme.
+- Theme repaints are cheaper (no closure per property, one `Font` per family, weight and style): a full
+  repaint takes about a third less time.
+- The keybind list keeps its rows when only on / off states change and recolours them in place; a key press
+  that changes nothing leaves it alone.
+- Lock overlays, lock icons and element descriptions are built when first needed (about 10 % fewer instances).
+- On-screen buttons repaint only when their state changes; the poll ten times a second started four tweens
+  per button every time.
+
+### Fixed
+
+- Window blur repainted the whole theme, re-set every theme control in Settings and saved `ui.json` on
+  every open and close.
+
 ## [1.7.0] - 2026-10-18
 
 ### Added

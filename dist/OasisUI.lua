@@ -1,4 +1,4 @@
--- OasisUI v1.7.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.8.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -600,7 +600,7 @@ function Acrylic:_window()
         else
             restore()
         end
-        Theme.Set({ _windowBlur = visible })
+        self:_tint(visible)
     end
     table.insert(connections, camera:GetPropertyChangedSignal("CFrame"):Connect(place))
     table.insert(connections, camera:GetPropertyChangedSignal("FieldOfView"):Connect(place))
@@ -619,8 +619,16 @@ function Acrylic:_window()
         restore()
         part:Destroy()
         depth:Destroy()
-        Theme.Set({ _windowBlur = false })
+        self:_tint(false)
     end
+end
+
+-- the window's background lets the blur through; only the window reads the token, so no theme-wide repaint
+-- (which would also save the theme) runs on every open and close
+function Acrylic:_tint(on)
+    if Theme.Current._windowBlur == on then return end
+    Theme.Current._windowBlur = on
+    Theme.Refresh(self.Frame)
 end
 
 function Acrylic:SetMode(mode)
@@ -1502,8 +1510,6 @@ function Module:Render(parent, maid, view)
         Util.Padding(tag, 0, 6, 0, 6)
         Util.Label({ Text = self.Tab.Path or self.Tab.Title, TextSize = 10, Color = "TextMuted", Weight = Enum.FontWeight.Medium, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = tag })
     end
-    local lockIcon = Util.Icon("lock", { Size = UDim2.fromOffset(12, 12), Color = "Danger", LayoutOrder = 4, Visible = self.Locked, Parent = left })
-
     local right = Util.New("Frame", { BackgroundTransparency = 1, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = 2, Parent = line })
     Util.List(right, 4, Enum.FillDirection.Horizontal, Enum.HorizontalAlignment.Right, Enum.VerticalAlignment.Center)
     local star = Util.New("ImageButton", {
@@ -1636,19 +1642,29 @@ function Module:Render(parent, maid, view)
     Util.List(options, 9)
     self:_mountChildren(options, maid)
 
-    local lockShade = Util.New("TextButton", {
-        Name = "Lock",
-        Size = UDim2.fromScale(1, 1),
-        ZIndex = 30,
-        Visible = self.Locked,
-        Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.45 end },
-        Parent = body,
-    })
-    local function lockText()
-        return Util.Touch() and "Locked. Hold the header to unlock." or "Locked. Right-click the header to unlock."
+    -- built on first lock: most cards never get one
+    local lockIcon, lockShade
+    local function lock()
+        if not lockShade then
+            if not self.Locked then return end
+            lockIcon = Util.Icon("lock", { Size = UDim2.fromOffset(12, 12), Color = "Danger", LayoutOrder = 4, Parent = left })
+            lockShade = Util.New("TextButton", {
+                Name = "Lock",
+                Size = UDim2.fromScale(1, 1),
+                ZIndex = 30,
+                Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.45 end },
+                Parent = body,
+            })
+            local function lockText()
+                return Util.Touch() and "Locked. Hold the header to unlock." or "Locked. Right-click the header to unlock."
+            end
+            maid:Give(Tooltip.Attach(lockShade, lockText))
+            lockShade.MouseButton1Click:Connect(function() Tooltip.Show(lockText()) end)
+        end
+        lockIcon.Visible = self.Locked
+        lockShade.Visible = self.Locked
     end
-    maid:Give(Tooltip.Attach(lockShade, lockText))
-    lockShade.MouseButton1Click:Connect(function() Tooltip.Show(lockText()) end)
+    lock()
 
     local animating = 0
     local function height()
@@ -1694,8 +1710,7 @@ function Module:Render(parent, maid, view)
             desc.Visible = self:_showDescription()
         end
         if what == nil or what == "Locked" then
-            lockIcon.Visible = self.Locked
-            lockShade.Visible = self.Locked
+            lock()
             Theme.Refresh(title, 0.15)
         end
         if what == "Visible" then card.Visible = self.Visible end
@@ -2158,7 +2173,7 @@ function Overlays:_buildBinds()
     restore(window, "KeybindListPos", frame, keybindsHome)
     window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "KeybindListPos", frame) end end }))
     self.Binds, self.BindScale, self.BindHead, self.BindRule, self.BindCounter = frame, scale, head, rule, counter
-    self.BindRows = {}
+    self.BindRows, self.BindStates = {}, {}
 end
 
 function Overlays:SetKeybindList(on)
@@ -2250,27 +2265,44 @@ function Overlays:_entries()
     return list
 end
 
-local function keyCell(parent, entry, style, order)
+-- state.Active colours the cell; painted adds the themed instances for an in-place repaint
+local function keyCell(parent, entry, style, order, state, painted)
     local label = Util.KeyLabel(entry.Binding.Key)
     if style.KeyStyle == "Brackets" then label = "[" .. label .. "]" end
-    local color = entry.Active and "Accent" or "TextMuted"
+    local function color(t) return state.Active and t.Accent or t.TextMuted end
     if style.KeyStyle == "Pill" then
         local pill = Util.New("Frame", {
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(0, 15),
             LayoutOrder = order,
             Theme = {
-                BackgroundColor3 = entry.Active and "Accent" or "Elevated",
-                BackgroundTransparency = function() return entry.Active and 0.75 or 0.2 end,
+                BackgroundColor3 = function(t) return state.Active and t.Accent or t.Elevated end,
+                BackgroundTransparency = function() return state.Active and 0.75 or 0.2 end,
             },
             Parent = parent,
         })
         Util.Corner(4, pill)
         Util.Padding(pill, 0, 5, 0, 5)
-        Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Color = color, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = pill })
+        local text = Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Theme = { TextColor3 = color }, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = pill })
+        table.insert(painted, pill)
+        table.insert(painted, text)
         return pill
     end
-    return Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Color = color, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = order, Parent = parent })
+    local text = Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Theme = { TextColor3 = color }, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = order, Parent = parent })
+    table.insert(painted, text)
+    return text
+end
+
+-- what the rows are built from; an on / off change alone repaints the rows in place
+local function shape(style, entries)
+    local parts = { style.Show, style.Sort, tostring(style.Group), style.Layout, style.ModeText, style.KeyStyle }
+    -- these put active rows elsewhere or drop inactive ones
+    local moves = style.Show == "Active" or style.Sort == "Active first"
+    for _, entry in entries do
+        table.insert(parts, tostring(entry.Title) .. "\0" .. tostring(entry.Binding.Key) .. "\0" .. tostring(entry.Binding.Mode)
+            .. (moves and tostring(entry.Active) or ""))
+    end
+    return table.concat(parts, "\1")
 end
 
 function Overlays:_paintBinds()
@@ -2278,8 +2310,6 @@ function Overlays:_paintBinds()
     if not frame then return end
     local window = self.Window
     local style = window.Interface.KeybindStyle
-    for _, row in self.BindRows do row:Destroy() end
-    table.clear(self.BindRows)
     self.BindHead.Visible = style.Title
     self.BindRule.Visible = style.Title
 
@@ -2289,6 +2319,23 @@ function Overlays:_paintBinds()
         if entry.Active then active += 1 end
     end
     self.BindCounter.Text = active .. "/" .. #entries
+
+    -- a key press fires this; the rows stay unless what they show changed
+    local layout = shape(style, entries)
+    if layout == self._bindShape then
+        for index, entry in entries do
+            local row = self.BindStates[index]
+            if row.State.Active ~= entry.Active then
+                row.State.Active = entry.Active
+                for _, inst in row.Painted do Theme.Refresh(inst) end
+            end
+        end
+        return
+    end
+    self._bindShape = layout
+    for _, row in self.BindRows do row:Destroy() end
+    table.clear(self.BindRows)
+    self.BindStates = {}
 
     local columns = LAYOUTS[style.Layout] or LAYOUTS[Overlays.KeybindDefaults.Layout]
     local order, group = 2, nil
@@ -2310,21 +2357,24 @@ function Overlays:_paintBinds()
         end
         local row = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 17), LayoutOrder = order, Parent = frame })
         Util.List(row, 6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+        local state, painted = { Active = entry.Active }, {}
+        table.insert(self.BindStates, { State = state, Painted = painted })
         for index, column in columns do
             if column == "Name" then
                 local name = Util.Label({
                     Text = entry.Title,
                     TextSize = 11,
                     Weight = Enum.FontWeight.Medium,
-                    Color = entry.Active and "Text" or "TextMuted",
+                    Theme = { TextColor3 = function(t) return state.Active and t.Text or t.TextMuted end },
                     TextTruncate = Enum.TextTruncate.AtEnd,
                     Size = UDim2.new(0, 0, 1, 0),
                     LayoutOrder = index,
                     Parent = row,
                 })
                 Util.New("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill, Parent = name })
+                table.insert(painted, name)
             elseif column == "Key" then
-                keyCell(row, entry, style, index)
+                keyCell(row, entry, style, index, state, painted)
             elseif column == "Mode" and style.ModeText ~= "Hidden" then
                 Util.Label({
                     Text = style.ModeText == "Short" and mode:sub(1, 1) or mode,
@@ -2481,6 +2531,23 @@ Page.__index = Page
 
 local GAP = 10
 
+-- shows or hides a page frame (a page, or a tab's sub-tab holder) that fills its parent. Roblox keeps laying
+-- out hidden frames, so a hidden page keeps its last pixel size: resizing the window then lays out the shown
+-- page only, not every page of every tab
+function Page.SetShown(frame, shown)
+    if shown then
+        frame.Size = UDim2.fromScale(1, 1)
+        frame.Visible = true
+        return
+    end
+    frame.Visible = false
+    local parent = frame.Parent
+    if frame.Size.X.Scale == 0 or not (parent and parent:IsA("GuiObject")) then return end
+    local size = parent.AbsoluteSize / math.max(Util.ScaleOf(parent), 0.01)
+    -- not laid out yet: frozen on the next hide
+    if size.X > 0 and size.Y > 0 then frame.Size = UDim2.fromOffset(size.X, size.Y) end
+end
+
 -- options: Id, Columns (1 | 2), Draggable, Source (cards show their tab), Empty (text), EmptyIcon, Parent
 function Page.new(window, options)
     local self = setmetatable({
@@ -2497,9 +2564,9 @@ function Page.new(window, options)
         Name = "Page",
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
-        Visible = false,
         Parent = options.Parent or window.Content,
     })
+    Page.SetShown(self.Frame, false)
 
     local count = math.clamp(options.Columns or 2, 1, 2)
     for index = 1, count do
@@ -3241,14 +3308,9 @@ function Row.new(element, parent, maid, options)
     })
     Util.New("UISizeConstraint", { MaxSize = Vector2.new(options.TitleMax or 220, math.huge), Parent = title })
     row.Title = title
-
-    local lockIcon = Util.Icon("lock", {
-        Size = UDim2.fromOffset(11, 11),
-        Color = "TextMuted",
-        LayoutOrder = 3,
-        Visible = element.Locked,
-        Parent = titleLine,
-    })
+    local queryLabels = element.Window._queryLabels
+    queryLabels[title] = true
+    maid:Give(function() queryLabels[title] = nil end)
 
     local info
     if element.Tooltip then
@@ -3265,18 +3327,27 @@ function Row.new(element, parent, maid, options)
         info.MouseButton1Click:Connect(function() Tooltip.Show(element.Tooltip) end)
     end
 
-    local desc = Util.Label({
-        Text = element.Description or "",
-        TextSize = 11,
-        Color = "TextMuted",
-        TextWrapped = true,
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = element.Description ~= nil and element.Description ~= "",
-        LayoutOrder = 2,
-        Parent = block,
-    })
-    row.Description = desc
+    -- built on first use: most rows never get a description or a lock
+    local desc
+    local function describe()
+        local text = element.Description or ""
+        if not desc then
+            if text == "" then return end
+            desc = Util.Label({
+                TextSize = 11,
+                Color = "TextMuted",
+                TextWrapped = true,
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                LayoutOrder = 2,
+                Parent = block,
+            })
+            row.Description = desc
+        end
+        desc.Text = text
+        desc.Visible = text ~= ""
+    end
+    describe()
 
     local right = Util.New("Frame", {
         Name = "Right",
@@ -3311,28 +3382,38 @@ function Row.new(element, parent, maid, options)
         })
     end
 
-    local overlay = Util.New("TextButton", {
-        Name = "Lock",
-        Size = UDim2.new(1, 8, 1, 6),
-        Position = UDim2.fromOffset(-4, -3),
-        ZIndex = 20,
-        Visible = element.Locked,
-        Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.35 end },
-        Parent = frame,
-    })
-    Util.Corner(6, overlay)
-    maid:Give(Tooltip.Attach(overlay, function() return element.LockReason or "Locked" end))
-    overlay.MouseButton1Click:Connect(function() Tooltip.Show(element.LockReason or "Locked") end)
+    local lockIcon, overlay
+    local function lock()
+        if not overlay then
+            if not element.Locked then return end
+            lockIcon = Util.Icon("lock", {
+                Size = UDim2.fromOffset(11, 11),
+                Color = "TextMuted",
+                LayoutOrder = 3,
+                Parent = titleLine,
+            })
+            overlay = Util.New("TextButton", {
+                Name = "Lock",
+                Size = UDim2.new(1, 8, 1, 6),
+                Position = UDim2.fromOffset(-4, -3),
+                ZIndex = 20,
+                Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.35 end },
+                Parent = frame,
+            })
+            Util.Corner(6, overlay)
+            maid:Give(Tooltip.Attach(overlay, function() return element.LockReason or "Locked" end))
+            overlay.MouseButton1Click:Connect(function() Tooltip.Show(element.LockReason or "Locked") end)
+        end
+        overlay.Visible = element.Locked
+        lockIcon.Visible = element.Locked
+    end
+    lock()
 
     local function sync(what)
         if what == nil or what == "Title" then title.Text = element.Title end
-        if what == nil or what == "Description" then
-            desc.Text = element.Description or ""
-            desc.Visible = element.Description ~= nil and element.Description ~= ""
-        end
+        if what == nil or what == "Description" then describe() end
         if what == nil or what == "Locked" then
-            overlay.Visible = element.Locked
-            lockIcon.Visible = element.Locked
+            lock()
             Theme.Refresh(title, 0.15)
         end
         if what == nil or what == "Visible" then frame.Visible = element.Visible end
@@ -3512,20 +3593,24 @@ function ScreenButton:_release()
     self:Refresh()
 end
 
--- repaints the active state; the window polls every shown button
-function ScreenButton:Refresh()
+-- repaints the active state; the window polls every shown button ten times a second, so only a change
+-- (active, menu shown) repaints, force repaints anyway
+function ScreenButton:Refresh(force)
     local active = false
     if self.Def.Active then
         local ok, value = pcall(self.Def.Active)
         active = ok and value and true or false
     end
+    local look = (active and 1 or 0) + (self.Window.Visible and 2 or 0)
+    if look == self._look and not force then return end
+    self._look = look
     self.Active = active
     for _, inst in { self.Frame, self.Stroke, self.Label, self.IconLabel } do Theme.Refresh(inst, 0.12) end
 end
 
 function ScreenButton:ApplyStyle()
     self.Scale.Scale = (tonumber(self.Window.Interface.ButtonScale) or 100) / 100
-    self:Refresh()
+    self:Refresh(true)
 end
 
 function ScreenButton:SetVisible(visible)
@@ -3644,9 +3729,9 @@ function Tab:_enableSubTabs()
         Name = "SubTabs",
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
-        Visible = self.Page.Frame.Visible,
         Parent = window.Content,
     })
+    Page.SetShown(holder, self.Page.Frame.Visible)
     local bar = Util.New("ScrollingFrame", {
         Name = "Bar",
         Size = UDim2.new(1, 0, 0, BAR),
@@ -3684,7 +3769,7 @@ function Tab:_enableSubTabs()
     else
         -- the tab's own page goes unused; a tab shown before its first sub-tab (first or restored tab) left it
         -- visible on top of every page, where its empty columns swallowed the mouse wheel
-        self.Page.Frame.Visible = false
+        Page.SetShown(self.Page.Frame, false)
     end
 end
 
@@ -3755,7 +3840,7 @@ function Tab:_showSub(sub, silent)
     self.ActiveSub = sub
     for _, other in self.SubTabs do
         local selected = other == sub
-        other.Page.Frame.Visible = selected
+        Page.SetShown(other.Page.Frame, selected)
         if other.Chip.State.Selected ~= selected then
             other.Chip.State.Selected = selected
             other.Chip.Paint()
@@ -4213,6 +4298,9 @@ Window.__index = Window
 
 local TOP = 50
 local COMPACT = 56
+local SLIDE = 12           -- px the window travels when it opens and closes
+local CENTER = Vector2.new(0.5, 0.5)
+local TITLE_RATE = 1 / 30  -- s between steps of the animated title: every step redraws the window
 local MIN_SIZE = Vector2.new(560, 380)
 
 local INTERFACE = {
@@ -4258,6 +4346,7 @@ function Window.new(library, def)
         Panels = {},
         ScreenButtons = {},
         _binds = {},
+        _queryLabels = {},  -- row titles; a search highlights the matching ones
         Visible = true,
         Minimized = false,
     }, Window)
@@ -4321,7 +4410,7 @@ function Window.new(library, def)
     if def.AutoLoad ~= false then
         task.defer(function() self:LoadAutoload() end)
     end
-    self:_open()
+    self:_slide(true)
     return self
 end
 
@@ -4499,10 +4588,13 @@ function Window:_build()
         },
         Parent = title,
     })
+    local titleStep = 0
     self.Maid:Give(Services.RunService.Heartbeat:Connect(function()
-        if Theme.Current.AnimatedTitle and root.Visible then
-            titleGradient.Offset = Vector2.new(math.sin(os.clock() * 1.3) * 0.5, 0)
-        end
+        if not (Theme.Current.AnimatedTitle and self.Visible) then return end
+        local now = os.clock()
+        if now - titleStep < TITLE_RATE then return end
+        titleStep = now
+        titleGradient.Offset = Vector2.new(math.sin(now * 1.3) * 0.5, 0)
     end))
     for index, tag in def.Tags or {} do
         tag = type(tag) == "string" and { Text = tag } or tag
@@ -4597,7 +4689,7 @@ function Window:_build()
     self.Maid:Give(UIS.InputBegan:Connect(function(input)
         -- SearchShortcut = false keeps the bar but frees Ctrl+F
         if def.Search == false or def.SearchShortcut == false then return end
-        if input.KeyCode == Enum.KeyCode.F and root.Visible and not self.Minimized
+        if input.KeyCode == Enum.KeyCode.F and self.Visible and not self.Minimized
             and (UIS:IsKeyDown(Enum.KeyCode.LeftControl) or UIS:IsKeyDown(Enum.KeyCode.RightControl)) then
             task.defer(function() searchBox:CaptureFocus() end)
         end
@@ -5055,10 +5147,33 @@ function Window:SetMinimized(minimized)
     end
 end
 
-function Window:_open()
-    self.Root.Visible = true
-    self.UIScale.Scale = self:GetScale() * 0.92
-    Util.Tween(self.UIScale, 0.35, { Scale = self:GetScale() }, Enum.EasingStyle.Back)
+-- open / close: the window slides a few pixels. A move needs no new layout; a scale laid out every element
+-- (and every hidden page) again on every frame of the animation. It runs on the anchor point, so Position
+-- stays the window's place for drags and saves
+function Window:_slide(visible)
+    local root = self.Root
+    local running = self._slideTween
+    if running then running:Cancel() end
+    self._slideTween = nil
+    local function done()
+        root.AnchorPoint = CENTER
+        root.Visible = self.Visible
+    end
+    if (Theme.Current.AnimSpeed or 1) <= 0 then return done() end
+    local away = Vector2.new(0.5, 0.5 - SLIDE / math.max(root.Size.Y.Offset, 1))
+    if visible then
+        -- from rest it starts below; a close that is still running turns around where it is
+        if not running then root.AnchorPoint = away end
+        root.Visible = true
+    end
+    local tween = Util.Tween(root, visible and 0.3 or 0.18, { AnchorPoint = visible and CENTER or away }, Enum.EasingStyle.Quint,
+        visible and Enum.EasingDirection.Out or Enum.EasingDirection.In)
+    self._slideTween = tween
+    tween.Completed:Once(function(state)
+        if state ~= Enum.PlaybackState.Completed or self._slideTween ~= tween then return end
+        self._slideTween = nil
+        done()
+    end)
 end
 
 function Window:SetVisible(visible)
@@ -5067,13 +5182,7 @@ function Window:SetVisible(visible)
     self.Visible = visible
     Popup.CloseAll()
     Tooltip.Hide()
-    if visible then
-        self:_open()
-    else
-        local tween = Util.Tween(self.UIScale, 0.18, { Scale = self:GetScale() * 0.94 }, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-        local function hide() if not self.Visible then self.Root.Visible = false end end
-        if tween then tween.Completed:Once(hide) else hide() end
-    end
+    self:_slide(visible)
     self.Acrylic:SetVisible(visible)
     for _, panel in self.Panels do panel:SetVisible(panel.Visible) end
     for _, button in self.ScreenButtons do button:Refresh() end
@@ -5146,13 +5255,13 @@ function Window:_showPage(target)
     Popup.CloseAll()
     local frame = target.Frame
     for _, other in { self.Favorites, self.SearchPage } do
-        if other and other.Frame ~= frame then other.Frame.Visible = false end
+        if other and other.Frame ~= frame then Page.SetShown(other.Frame, false) end
     end
     for _, tab in self.Tabs do
-        if tab.Frame ~= frame then tab.Frame.Visible = false end
+        if tab.Frame ~= frame then Page.SetShown(tab.Frame, false) end
     end
     if not frame.Visible then
-        frame.Visible = true
+        Page.SetShown(frame, true)
         frame.Position = UDim2.fromOffset(0, 10)
         Util.Tween(frame, 0.3, { Position = UDim2.new() })
     end
@@ -5168,7 +5277,7 @@ function Window:_select(entry, page, id)
         self._searching = false
         self.Query = nil
         self.SearchPage:Clear()
-        task.defer(Theme.Apply)
+        self:_paintQuery()
     end
     self:_showPage(page)
     if id then
@@ -5297,10 +5406,20 @@ function Window:_removeModule(module)
     if bind then table.remove(self._binds, bind) end
 end
 
+-- the query only colours row titles: those are repainted, not the whole theme
+function Window:_paintQuery()
+    if self._queryQueued then return end
+    self._queryQueued = true
+    task.defer(function()
+        self._queryQueued = false
+        for label in self._queryLabels do Theme.Refresh(label) end
+    end)
+end
+
 function Window:_search(text)
     local query = text:lower():match("^%s*(.-)%s*$")
     self.Query = query ~= "" and query or nil
-    task.defer(Theme.Apply)
+    self:_paintQuery()
     if query == "" then
         if self._searching then
             self._searching = false
@@ -6560,12 +6679,24 @@ local function resolve(token)
 end
 Theme.Resolve = resolve
 
+-- a token's value, nil when its function fails
+local function value(token, current)
+    if type(token) ~= "function" then return current[token] end
+    local ok, result = pcall(token, current)
+    if ok then return result end
+    return nil
+end
+
+local function set(inst, prop, v)
+    inst[prop] = v
+end
+
+-- runs for every bound instance on a theme change: no closure per property
 local function paint(inst, map)
+    local current = Theme.Current
     for prop, token in map do
-        local ok, value = pcall(resolve, token)
-        if ok and value ~= nil then
-            pcall(function() inst[prop] = value end)
-        end
+        local v = value(token, current)
+        if v ~= nil then pcall(set, inst, prop, v) end
     end
 end
 
@@ -6598,14 +6729,15 @@ function Theme.Refresh(inst, time)
         return
     end
     local goal = {}
+    local current = Theme.Current
     for prop, token in bound do
-        local ok, value = pcall(resolve, token)
-        if ok and value ~= nil then
-            local kind = typeof(value)
+        local v = value(token, current)
+        if v ~= nil then
+            local kind = typeof(v)
             if kind == "Color3" or kind == "number" or kind == "UDim" or kind == "UDim2" or kind == "Vector2" then
-                goal[prop] = value
+                goal[prop] = v
             else
-                pcall(function() inst[prop] = value end)
+                pcall(set, inst, prop, v)
             end
         end
     end
@@ -6655,9 +6787,29 @@ function Theme.UsePalette(name)
     return true
 end
 
+-- one Font per family, weight and style: every label repaints its font on a theme change
+local fonts = {}
+
 function Theme.Font(weight, style)
+    weight, style = weight or Enum.FontWeight.Regular, style or Enum.FontStyle.Normal
     return function(current)
-        return Font.new("rbxasset://fonts/families/" .. tostring(current.Font) .. ".json", weight or Enum.FontWeight.Regular, style or Enum.FontStyle.Normal)
+        local family = tostring(current.Font)
+        local byWeight = fonts[family]
+        if not byWeight then
+            byWeight = {}
+            fonts[family] = byWeight
+        end
+        local byStyle = byWeight[weight]
+        if not byStyle then
+            byStyle = {}
+            byWeight[weight] = byStyle
+        end
+        local font = byStyle[style]
+        if not font then
+            font = Font.new("rbxasset://fonts/families/" .. family .. ".json", weight, style)
+            byStyle[style] = font
+        end
+        return font
     end
 end
 
@@ -10313,5 +10465,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.7.0"
+Library.Version = "1.8.0"
 return Library

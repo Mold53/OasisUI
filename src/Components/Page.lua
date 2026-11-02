@@ -10,6 +10,23 @@ Page.__index = Page
 
 local GAP = 10
 
+-- shows or hides a page frame (a page, or a tab's sub-tab holder) that fills its parent. Roblox keeps laying
+-- out hidden frames, so a hidden page keeps its last pixel size: resizing the window then lays out the shown
+-- page only, not every page of every tab
+function Page.SetShown(frame, shown)
+    if shown then
+        frame.Size = UDim2.fromScale(1, 1)
+        frame.Visible = true
+        return
+    end
+    frame.Visible = false
+    local parent = frame.Parent
+    if frame.Size.X.Scale == 0 or not (parent and parent:IsA("GuiObject")) then return end
+    local size = parent.AbsoluteSize / math.max(Util.ScaleOf(parent), 0.01)
+    -- not laid out yet: frozen on the next hide
+    if size.X > 0 and size.Y > 0 then frame.Size = UDim2.fromOffset(size.X, size.Y) end
+end
+
 -- options: Id, Columns (1 | 2), Draggable, Source (cards show their tab), Empty (text), EmptyIcon, Parent
 function Page.new(window, options)
     local self = setmetatable({
@@ -26,9 +43,9 @@ function Page.new(window, options)
         Name = "Page",
         BackgroundTransparency = 1,
         Size = UDim2.fromScale(1, 1),
-        Visible = false,
         Parent = options.Parent or window.Content,
     })
+    Page.SetShown(self.Frame, false)
 
     local count = math.clamp(options.Columns or 2, 1, 2)
     for index = 1, count do
