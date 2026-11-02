@@ -132,20 +132,24 @@ function ScreenButton:_release()
     self:Refresh()
 end
 
--- repaints the active state; the window polls every shown button
-function ScreenButton:Refresh()
+-- repaints the active state; the window polls every shown button ten times a second, so only a change
+-- (active, menu shown) repaints, force repaints anyway
+function ScreenButton:Refresh(force)
     local active = false
     if self.Def.Active then
         local ok, value = pcall(self.Def.Active)
         active = ok and value and true or false
     end
+    local look = (active and 1 or 0) + (self.Window.Visible and 2 or 0)
+    if look == self._look and not force then return end
+    self._look = look
     self.Active = active
     for _, inst in { self.Frame, self.Stroke, self.Label, self.IconLabel } do Theme.Refresh(inst, 0.12) end
 end
 
 function ScreenButton:ApplyStyle()
     self.Scale.Scale = (tonumber(self.Window.Interface.ButtonScale) or 100) / 100
-    self:Refresh()
+    self:Refresh(true)
 end
 
 function ScreenButton:SetVisible(visible)

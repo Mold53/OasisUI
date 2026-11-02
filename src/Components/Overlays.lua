@@ -131,7 +131,7 @@ function Overlays:_buildBinds()
     restore(window, "KeybindListPos", frame, keybindsHome)
     window.Maid:Give(Drag.Attach(frame, frame, { OnEnd = function(moved) if moved then savePosition(window, "KeybindListPos", frame) end end }))
     self.Binds, self.BindScale, self.BindHead, self.BindRule, self.BindCounter = frame, scale, head, rule, counter
-    self.BindRows = {}
+    self.BindRows, self.BindStates = {}, {}
 end
 
 function Overlays:SetKeybindList(on)
@@ -223,27 +223,44 @@ function Overlays:_entries()
     return list
 end
 
-local function keyCell(parent, entry, style, order)
+-- state.Active colours the cell; painted adds the themed instances for an in-place repaint
+local function keyCell(parent, entry, style, order, state, painted)
     local label = Util.KeyLabel(entry.Binding.Key)
     if style.KeyStyle == "Brackets" then label = "[" .. label .. "]" end
-    local color = entry.Active and "Accent" or "TextMuted"
+    local function color(t) return state.Active and t.Accent or t.TextMuted end
     if style.KeyStyle == "Pill" then
         local pill = Util.New("Frame", {
             AutomaticSize = Enum.AutomaticSize.X,
             Size = UDim2.fromOffset(0, 15),
             LayoutOrder = order,
             Theme = {
-                BackgroundColor3 = entry.Active and "Accent" or "Elevated",
-                BackgroundTransparency = function() return entry.Active and 0.75 or 0.2 end,
+                BackgroundColor3 = function(t) return state.Active and t.Accent or t.Elevated end,
+                BackgroundTransparency = function() return state.Active and 0.75 or 0.2 end,
             },
             Parent = parent,
         })
         Util.Corner(4, pill)
         Util.Padding(pill, 0, 5, 0, 5)
-        Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Color = color, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = pill })
+        local text = Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Theme = { TextColor3 = color }, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), Parent = pill })
+        table.insert(painted, pill)
+        table.insert(painted, text)
         return pill
     end
-    return Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Color = color, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = order, Parent = parent })
+    local text = Util.Label({ Text = label, TextSize = 10, Weight = Enum.FontWeight.Bold, Theme = { TextColor3 = color }, AutomaticSize = Enum.AutomaticSize.X, Size = UDim2.fromScale(0, 1), LayoutOrder = order, Parent = parent })
+    table.insert(painted, text)
+    return text
+end
+
+-- what the rows are built from; an on / off change alone repaints the rows in place
+local function shape(style, entries)
+    local parts = { style.Show, style.Sort, tostring(style.Group), style.Layout, style.ModeText, style.KeyStyle }
+    -- these put active rows elsewhere or drop inactive ones
+    local moves = style.Show == "Active" or style.Sort == "Active first"
+    for _, entry in entries do
+        table.insert(parts, tostring(entry.Title) .. "\0" .. tostring(entry.Binding.Key) .. "\0" .. tostring(entry.Binding.Mode)
+            .. (moves and tostring(entry.Active) or ""))
+    end
+    return table.concat(parts, "\1")
 end
 
 function Overlays:_paintBinds()
@@ -251,8 +268,6 @@ function Overlays:_paintBinds()
     if not frame then return end
     local window = self.Window
     local style = window.Interface.KeybindStyle
-    for _, row in self.BindRows do row:Destroy() end
-    table.clear(self.BindRows)
     self.BindHead.Visible = style.Title
     self.BindRule.Visible = style.Title
 
@@ -262,6 +277,23 @@ function Overlays:_paintBinds()
         if entry.Active then active += 1 end
     end
     self.BindCounter.Text = active .. "/" .. #entries
+
+    -- a key press fires this; the rows stay unless what they show changed
+    local layout = shape(style, entries)
+    if layout == self._bindShape then
+        for index, entry in entries do
+            local row = self.BindStates[index]
+            if row.State.Active ~= entry.Active then
+                row.State.Active = entry.Active
+                for _, inst in row.Painted do Theme.Refresh(inst) end
+            end
+        end
+        return
+    end
+    self._bindShape = layout
+    for _, row in self.BindRows do row:Destroy() end
+    table.clear(self.BindRows)
+    self.BindStates = {}
 
     local columns = LAYOUTS[style.Layout] or LAYOUTS[Overlays.KeybindDefaults.Layout]
     local order, group = 2, nil
@@ -283,21 +315,24 @@ function Overlays:_paintBinds()
         end
         local row = Util.New("Frame", { BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 17), LayoutOrder = order, Parent = frame })
         Util.List(row, 6, Enum.FillDirection.Horizontal, nil, Enum.VerticalAlignment.Center)
+        local state, painted = { Active = entry.Active }, {}
+        table.insert(self.BindStates, { State = state, Painted = painted })
         for index, column in columns do
             if column == "Name" then
                 local name = Util.Label({
                     Text = entry.Title,
                     TextSize = 11,
                     Weight = Enum.FontWeight.Medium,
-                    Color = entry.Active and "Text" or "TextMuted",
+                    Theme = { TextColor3 = function(t) return state.Active and t.Text or t.TextMuted end },
                     TextTruncate = Enum.TextTruncate.AtEnd,
                     Size = UDim2.new(0, 0, 1, 0),
                     LayoutOrder = index,
                     Parent = row,
                 })
                 Util.New("UIFlexItem", { FlexMode = Enum.UIFlexMode.Fill, Parent = name })
+                table.insert(painted, name)
             elseif column == "Key" then
-                keyCell(row, entry, style, index)
+                keyCell(row, entry, style, index, state, painted)
             elseif column == "Mode" and style.ModeText ~= "Hidden" then
                 Util.Label({
                     Text = style.ModeText == "Short" and mode:sub(1, 1) or mode,

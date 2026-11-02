@@ -82,14 +82,9 @@ function Row.new(element, parent, maid, options)
     })
     Util.New("UISizeConstraint", { MaxSize = Vector2.new(options.TitleMax or 220, math.huge), Parent = title })
     row.Title = title
-
-    local lockIcon = Util.Icon("lock", {
-        Size = UDim2.fromOffset(11, 11),
-        Color = "TextMuted",
-        LayoutOrder = 3,
-        Visible = element.Locked,
-        Parent = titleLine,
-    })
+    local queryLabels = element.Window._queryLabels
+    queryLabels[title] = true
+    maid:Give(function() queryLabels[title] = nil end)
 
     local info
     if element.Tooltip then
@@ -106,18 +101,27 @@ function Row.new(element, parent, maid, options)
         info.MouseButton1Click:Connect(function() Tooltip.Show(element.Tooltip) end)
     end
 
-    local desc = Util.Label({
-        Text = element.Description or "",
-        TextSize = 11,
-        Color = "TextMuted",
-        TextWrapped = true,
-        Size = UDim2.new(1, 0, 0, 0),
-        AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = element.Description ~= nil and element.Description ~= "",
-        LayoutOrder = 2,
-        Parent = block,
-    })
-    row.Description = desc
+    -- built on first use: most rows never get a description or a lock
+    local desc
+    local function describe()
+        local text = element.Description or ""
+        if not desc then
+            if text == "" then return end
+            desc = Util.Label({
+                TextSize = 11,
+                Color = "TextMuted",
+                TextWrapped = true,
+                Size = UDim2.new(1, 0, 0, 0),
+                AutomaticSize = Enum.AutomaticSize.Y,
+                LayoutOrder = 2,
+                Parent = block,
+            })
+            row.Description = desc
+        end
+        desc.Text = text
+        desc.Visible = text ~= ""
+    end
+    describe()
 
     local right = Util.New("Frame", {
         Name = "Right",
@@ -152,28 +156,38 @@ function Row.new(element, parent, maid, options)
         })
     end
 
-    local overlay = Util.New("TextButton", {
-        Name = "Lock",
-        Size = UDim2.new(1, 8, 1, 6),
-        Position = UDim2.fromOffset(-4, -3),
-        ZIndex = 20,
-        Visible = element.Locked,
-        Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.35 end },
-        Parent = frame,
-    })
-    Util.Corner(6, overlay)
-    maid:Give(Tooltip.Attach(overlay, function() return element.LockReason or "Locked" end))
-    overlay.MouseButton1Click:Connect(function() Tooltip.Show(element.LockReason or "Locked") end)
+    local lockIcon, overlay
+    local function lock()
+        if not overlay then
+            if not element.Locked then return end
+            lockIcon = Util.Icon("lock", {
+                Size = UDim2.fromOffset(11, 11),
+                Color = "TextMuted",
+                LayoutOrder = 3,
+                Parent = titleLine,
+            })
+            overlay = Util.New("TextButton", {
+                Name = "Lock",
+                Size = UDim2.new(1, 8, 1, 6),
+                Position = UDim2.fromOffset(-4, -3),
+                ZIndex = 20,
+                Theme = { BackgroundColor3 = "Surface", BackgroundTransparency = function() return 0.35 end },
+                Parent = frame,
+            })
+            Util.Corner(6, overlay)
+            maid:Give(Tooltip.Attach(overlay, function() return element.LockReason or "Locked" end))
+            overlay.MouseButton1Click:Connect(function() Tooltip.Show(element.LockReason or "Locked") end)
+        end
+        overlay.Visible = element.Locked
+        lockIcon.Visible = element.Locked
+    end
+    lock()
 
     local function sync(what)
         if what == nil or what == "Title" then title.Text = element.Title end
-        if what == nil or what == "Description" then
-            desc.Text = element.Description or ""
-            desc.Visible = element.Description ~= nil and element.Description ~= ""
-        end
+        if what == nil or what == "Description" then describe() end
         if what == nil or what == "Locked" then
-            overlay.Visible = element.Locked
-            lockIcon.Visible = element.Locked
+            lock()
             Theme.Refresh(title, 0.15)
         end
         if what == nil or what == "Visible" then frame.Visible = element.Visible end

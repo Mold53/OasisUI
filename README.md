@@ -406,6 +406,9 @@ a GitHub release with `OasisUI.lua` attached and the changelog section as notes.
   camera and a `DepthOfFieldEffect`. Roblox draws glass from graphics quality 8 up, and a
   `DFIntDebugFRMQualityLevelOverride` FFlag set by a bootstrapper overrides the menu level. The game's own
   depth of field effects are switched off while it shows and restored afterwards.
+- Roblox keeps laying out hidden frames. A scale change on the window would lay out every element of every tab
+  again, so the window slides when it opens and closes, and a hidden page keeps its last pixel size: resizing the
+  window or switching the compact sidebar lays out the shown page only.
 - Guis go to `gethui()` when the executor has it, otherwise to CoreGui, otherwise to PlayerGui.
 - Without file functions (`writefile`, `readfile`, …) everything works, but nothing is saved.
 
