@@ -1,4 +1,4 @@
--- OasisUI v1.8.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.8.1 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -293,9 +293,14 @@ return function(window)
             if ok then notify("Config imported", nil, "Success") else notify("Import failed", err, "Error") end
         end },
     })
-    window.Maid:Give(configs.Changed:Connect(function()
+    -- the pick follows a load or a new current config: an auto save keeps what was picked
+    local shown = configs.Current
+    window.Maid:Give(configs.Changed:Connect(function(reason)
         configList:Refresh(configs:List())
-        if configs.Current and configs:Exists(configs.Current) then configList:Set(configs.Current) end
+        if reason == "load" or configs.Current ~= shown then
+            shown = configs.Current
+            if shown and configs:Exists(shown) then configList:Set(shown) end
+        end
         autoload:SetValue(configs:GetAutoload() or "none")
     end))
 
@@ -5678,7 +5683,7 @@ function Config.new(folder)
         Flags = {},
         Current = nil,
         AutoSave = false,
-        Changed = Signal.new(),     -- list / current / autoload changed
+        Changed = Signal.new(),     -- list / current / autoload changed; "load" when a config was loaded
         Loaded = Signal.new(),      -- a config was applied
         _loading = false,
         _saveQueued = false,
@@ -5767,7 +5772,7 @@ function Config:Load(name)
     local applied, err = self:Apply(data)
     if not applied then return false, err end
     self.Current = clean
-    self.Changed:Fire()
+    self.Changed:Fire("load")
     return true, clean
 end
 
@@ -9227,6 +9232,9 @@ local import = ...
 local Base = import("Elements/Base")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
+local Services = import("Core/Services")
+
+local TextService = Services.TextService
 
 -- def: Text, Value (right aligned text), Color (token), ValueColor (token | Color3), Size, RichText;
 --      Set(text), SetValue(text), SetValueColor(token | Color3 | nil)
@@ -9285,17 +9293,49 @@ function Label:Render(parent, maid)
         end },
         Weight = Enum.FontWeight.SemiBold,
         TextXAlignment = Enum.TextXAlignment.Right,
+        TextTruncate = Enum.TextTruncate.AtEnd,
         AnchorPoint = Vector2.new(1, 0),
         Position = UDim2.fromScale(1, 0),
         Size = UDim2.new(0, 0, 0, 16),
         AutomaticSize = Enum.AutomaticSize.X,
         Parent = frame,
     })
-    local function paint()
+    -- the value takes what the title leaves on its line (at least 40 %), a longer one ends in "…"
+    local limit = Util.New("UISizeConstraint", { Parent = value })
+
+    -- the title's one-line width in offset units, measured once per text and font
+    local measured, titleWidth = nil, 0
+    local paint
+    local function measure()
+        local key = self.Title .. "|" .. tostring(text.FontFace) .. "|" .. text.TextSize
+        if key == measured then return end
+        measured = key
+        task.spawn(function()
+            local params = Instance.new("GetTextBoundsParams")
+            params.Text = self.Title ~= "" and self.Title or " "
+            params.Font = text.FontFace
+            params.Size = text.TextSize
+            params.Width = math.huge
+            pcall(function() params.RichText = text.RichText end)
+            local ok, bounds = pcall(TextService.GetTextBoundsAsync, TextService, params)
+            if ok and measured == key then
+                titleWidth = math.ceil(bounds.X)
+                paint()
+            end
+        end)
+    end
+
+    paint = function()
         text.Text = self.Title
         value.Text = self.Value or ""
         value.Visible = self.Value ~= nil
-        text.Size = UDim2.new(1, self.Value and -(value.AbsoluteSize.X + 10) or 0, 0, 0)
+        if self.Value then
+            measure()
+            local width = frame.AbsoluteSize.X / math.max(Util.ScaleOf(frame), 0.01)
+            local room = math.max(width - titleWidth - 10, width * 0.4)
+            if width > 0 and limit.MaxSize.X ~= room then limit.MaxSize = Vector2.new(room, math.huge) end
+        end
+        text.Size = UDim2.new(1, self.Value and -(value.AbsoluteSize.X / math.max(Util.ScaleOf(value), 0.01) + 10) or 0, 0, 0)
         frame.Visible = self.Visible
         Theme.Refresh(value)
     end
@@ -9303,6 +9343,7 @@ function Label:Render(parent, maid)
     maid:Give(self.Changed:Connect(paint))
     maid:Give(self.StateChanged:Connect(paint))
     maid:Give(value:GetPropertyChangedSignal("AbsoluteSize"):Connect(paint))
+    maid:Give(frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(paint))
     return frame
 end
 
@@ -10465,5 +10506,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.8.0"
+Library.Version = "1.8.1"
 return Library
