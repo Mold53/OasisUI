@@ -277,9 +277,14 @@ return function(window)
             if ok then notify("Config imported", nil, "Success") else notify("Import failed", err, "Error") end
         end },
     })
-    window.Maid:Give(configs.Changed:Connect(function()
+    -- the pick follows a load or a new current config: an auto save keeps what was picked
+    local shown = configs.Current
+    window.Maid:Give(configs.Changed:Connect(function(reason)
         configList:Refresh(configs:List())
-        if configs.Current and configs:Exists(configs.Current) then configList:Set(configs.Current) end
+        if reason == "load" or configs.Current ~= shown then
+            shown = configs.Current
+            if shown and configs:Exists(shown) then configList:Set(shown) end
+        end
         autoload:SetValue(configs:GetAutoload() or "none")
     end))
 

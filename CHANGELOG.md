@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1] - 2026-11-08
+
+### Fixed
+
+- A label's value no longer runs over its title or out of the row: it gets the room the title leaves on its
+  line (at least 40 % of the row) and a longer value ends in "…". The title's offset also accounts for a
+  scaled panel.
+- Settings > Configs: the picked config no longer jumps back to the loaded one whenever auto save writes it.
+  The pick follows a load, a save under another name and a rename. `Config.Changed` passes `"load"` after a load.
+
 ## [1.8.0] - 2026-11-02
 
 Performance update: the same settings cost less, and opening or closing the menu no longer drops frames.

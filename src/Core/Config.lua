@@ -15,7 +15,7 @@ function Config.new(folder)
         Flags = {},
         Current = nil,
         AutoSave = false,
-        Changed = Signal.new(),     -- list / current / autoload changed
+        Changed = Signal.new(),     -- list / current / autoload changed; "load" when a config was loaded
         Loaded = Signal.new(),      -- a config was applied
         _loading = false,
         _saveQueued = false,
@@ -104,7 +104,7 @@ function Config:Load(name)
     local applied, err = self:Apply(data)
     if not applied then return false, err end
     self.Current = clean
-    self.Changed:Fire()
+    self.Changed:Fire("load")
     return true, clean
 end
 
