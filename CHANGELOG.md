@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.0] - 2026-11-08
+
+### Added
+
+- `CreateWindow({ Visible = false })`: the window starts hidden, with no open animation and no blur, and the menu
+  key opens it. A script that hides its menu on start no longer shows it while its tabs are built.
+
+### Changed
+
+- The README pins versions through the tag's `dist/OasisUI.lua` (raw.githubusercontent, jsDelivr as a mirror):
+  release asset links redirect, and some executors' `HttpGet` does not follow the redirect.
+
 ## [1.8.1] - 2026-11-08
 
 ### Fixed

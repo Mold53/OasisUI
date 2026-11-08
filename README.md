@@ -20,24 +20,30 @@ in the game.
 
 ## Installation
 
-Pin a version for scripts you ship. The release file never changes after it is published:
+Pin a version for scripts you ship. A tag's file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.6.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.0/dist/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned release | `https://github.com/Mold53/OasisUI/releases/download/v1.6.0/OasisUI.lua` |
+| Pinned (tag) | `https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.0/dist/OasisUI.lua` |
+| Pinned (tag, mirror) | `https://cdn.jsdelivr.net/gh/Mold53/OasisUI@v1.9.0/dist/OasisUI.lua` |
+| Release asset | `https://github.com/Mold53/OasisUI/releases/download/v1.9.0/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
-`OasisUI.Version` holds the loaded version (`"1.6.0"`).
+All pinned sources serve the same file. Release asset links answer with a redirect, and some executors' `HttpGet`
+does not follow it (an empty or HTML body); the tag links serve the file directly. The first line of the file is
+`-- OasisUI vX.Y.Z | …`, so a loader can check it got the library before running it.
+
+`OasisUI.Version` holds the loaded version (`"1.9.0"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://github.com/Mold53/OasisUI/releases/download/v1.6.0/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.0/dist/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -136,6 +142,7 @@ local Window = OasisUI:CreateWindow({
     AutoSave = false,                     -- default of Settings > Configs > Auto save
     DefaultConfig = nil,                  -- a name: the first run saves the defaults under it and sets it as autoload
     GuiName = "OasisUI",
+    Visible = true,                       -- false: starts hidden (no open animation), the menu key opens it
 })
 ```
 
