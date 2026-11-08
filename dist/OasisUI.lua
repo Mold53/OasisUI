@@ -1,4 +1,4 @@
--- OasisUI v1.8.1 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.9.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -4340,7 +4340,7 @@ local INTERFACE = {
 --      AutoLoad, SidebarWidth, Resizable, Draggable, Minimizable, CloseAction ("Hide" | "Unload" | "Confirm"),
 --      ComboKeys (default keys per bind, 1-4), SearchShortcut (false: no Ctrl+F),
 --      AutoSave (default of Settings > Auto save), DefaultConfig (name: created and set as autoload on the first run),
---      User (false | { Name, Subtitle, Avatar (asset | false), Callback })
+--      Visible (false: starts hidden, no open animation), User (false | { Name, Subtitle, Avatar (asset | false), Callback })
 function Window.new(library, def)
     local self = setmetatable({
         Library = library,
@@ -4352,7 +4352,7 @@ function Window.new(library, def)
         ScreenButtons = {},
         _binds = {},
         _queryLabels = {},  -- row titles; a search highlights the matching ones
-        Visible = true,
+        Visible = def.Visible ~= false,
         Minimized = false,
     }, Window)
     self.Folder = def.Folder or (def.Title and def.Title:gsub("[^%w_%- ]", "")) or "OasisUI"
@@ -4401,6 +4401,7 @@ function Window.new(library, def)
     self.Overlays:SetWatermark(self.Interface.Watermark)
     if UIS.TouchEnabled then self.Overlays:SetMobileButton(true) end
     self.Acrylic = Acrylic.new(self.Root, self.Maid)
+    self.Acrylic.Shown = self.Visible
     self.Acrylic.Strength = tonumber(self.Interface.BlurStrength) or 12
     self.Acrylic:SetMode(self.Interface.Blur)
 
@@ -4415,7 +4416,7 @@ function Window.new(library, def)
     if def.AutoLoad ~= false then
         task.defer(function() self:LoadAutoload() end)
     end
-    self:_slide(true)
+    if self.Visible then self:_slide(true) end
     return self
 end
 
@@ -4520,6 +4521,7 @@ function Window:_build()
         AnchorPoint = Vector2.new(0.5, 0.5),
         Position = UDim2.fromScale(0.5, 0.5),
         Size = size,
+        Visible = self.Visible,
         ClipsDescendants = true,
         Active = true,
         Theme = {
@@ -10506,5 +10508,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.8.1"
+Library.Version = "1.9.0"
 return Library
