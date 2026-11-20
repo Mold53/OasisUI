@@ -1,4 +1,4 @@
--- OasisUI v1.9.0 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.9.1 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -41,6 +41,29 @@ return function(window)
             if ok then return text end
         end
         return nil
+    end
+    -- clipboard first; without a readable one (most executors) a field to paste into
+    local function importText(kind, apply, done)
+        local text = readClipboard()
+        if text and apply(text) then done(); return end
+        window:Dialog({
+            Title = "Import " .. kind,
+            Icon = "clipboard-paste",
+            Content = "Paste the " .. kind .. " below (Ctrl+V).",
+            Input = { Placeholder = "Paste here", Multiline = true, Height = 120, Monospace = true },
+            Buttons = {
+                { Title = "Cancel", Style = "Secondary" },
+                { Title = "Import", Style = "Primary", Callback = function(pasted, dialog)
+                    local ok, err = apply(pasted or "")
+                    if not ok then
+                        dialog:SetError(err)
+                        return false
+                    end
+                    done()
+                    return true
+                end },
+            },
+        })
     end
 
     -- appearance --------------------------------------------------------------
@@ -206,8 +229,11 @@ return function(window)
             if text and clipboard(text) then notify("Theme copied", "Paste it anywhere to share.", "Success") else notify("Export failed", "Clipboard is not supported.", "Error") end
         end },
         { Title = "Import", Icon = "clipboard-paste", Callback = function()
-            local data = Storage.Decode(readClipboard() or "")
-            if data and Theme.Import(data) then notify("Theme imported", nil, "Success") else notify("Import failed", "Clipboard does not hold a theme.", "Error") end
+            importText("theme", function(text)
+                local data = Storage.Decode(text)
+                if data and Theme.Import(data) then return true end
+                return false, "Not a valid theme."
+            end, function() notify("Theme imported", nil, "Success") end)
         end },
     })
     themes:Button({ Title = "Reset to preset", Icon = "rotate-ccw", Style = "Ghost", Callback = function()
@@ -289,8 +315,8 @@ return function(window)
             if text and clipboard(text) then notify("Config copied", "Share it as text.", "Success") else notify("Export failed", "Clipboard is not supported.", "Error") end
         end },
         { Title = "Import", Icon = "clipboard-paste", Callback = function()
-            local ok, err = configs:Import(readClipboard() or "")
-            if ok then notify("Config imported", nil, "Success") else notify("Import failed", err, "Error") end
+            importText("config", function(text) return configs:Import(text) end,
+                function() notify("Config imported", nil, "Success") end)
         end },
     })
     -- the pick follows a load or a new current config: an auto save keeps what was picked
@@ -5833,7 +5859,7 @@ end
 
 function Config:Import(text)
     local data = type(text) == "string" and Storage.Decode(text)
-    if not data then return false, "Clipboard does not hold a config." end
+    if not data then return false, "Not a valid config." end
     return self:Apply(data)
 end
 
@@ -10508,5 +10534,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.9.0"
+Library.Version = "1.9.1"
 return Library
