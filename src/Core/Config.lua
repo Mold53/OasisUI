@@ -163,7 +163,7 @@ end
 
 function Config:Import(text)
     local data = type(text) == "string" and Storage.Decode(text)
-    if not data then return false, "Clipboard does not hold a config." end
+    if not data then return false, "Not a valid config." end
     return self:Apply(data)
 end
 

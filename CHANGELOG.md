@@ -4,6 +4,15 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-11-20
+
+### Fixed
+
+- Settings > Configs and Settings > Themes: Import works on executors that cannot read the clipboard (no
+  `getclipboard`). It still imports straight from the clipboard where it can; otherwise, or when the clipboard
+  holds no config or theme, it opens a dialog to paste the text into. A wrong paste shows the error in the
+  dialog, which stays open.
+
 ## [1.9.0] - 2026-11-08
 
 ### Added

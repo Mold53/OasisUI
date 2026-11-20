@@ -23,14 +23,14 @@ in the game.
 Pin a version for scripts you ship. A tag's file never changes after it is published:
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.0/dist/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.1/dist/OasisUI.lua"))()
 ```
 
 | Source | URL |
 | --- | --- |
-| Pinned (tag) | `https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.0/dist/OasisUI.lua` |
-| Pinned (tag, mirror) | `https://cdn.jsdelivr.net/gh/Mold53/OasisUI@v1.9.0/dist/OasisUI.lua` |
-| Release asset | `https://github.com/Mold53/OasisUI/releases/download/v1.9.0/OasisUI.lua` |
+| Pinned (tag) | `https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.1/dist/OasisUI.lua` |
+| Pinned (tag, mirror) | `https://cdn.jsdelivr.net/gh/Mold53/OasisUI@v1.9.1/dist/OasisUI.lua` |
+| Release asset | `https://github.com/Mold53/OasisUI/releases/download/v1.9.1/OasisUI.lua` |
 | Latest release | `https://github.com/Mold53/OasisUI/releases/latest/download/OasisUI.lua` |
 | Development (`main`) | `https://raw.githubusercontent.com/Mold53/OasisUI/main/dist/OasisUI.lua` |
 
@@ -38,12 +38,12 @@ All pinned sources serve the same file. Release asset links answer with a redire
 does not follow it (an empty or HTML body); the tag links serve the file directly. The first line of the file is
 `-- OasisUI vX.Y.Z | …`, so a loader can check it got the library before running it.
 
-`OasisUI.Version` holds the loaded version (`"1.9.0"`).
+`OasisUI.Version` holds the loaded version (`"1.9.1"`).
 
 ## Quick start
 
 ```lua
-local OasisUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.0/dist/OasisUI.lua"))()
+local OasisUI = loadstring(game:HttpGet("https://raw.githubusercontent.com/Mold53/OasisUI/v1.9.1/dist/OasisUI.lua"))()
 
 local Window = OasisUI:CreateWindow({ Title = "Oasis", Subtitle = "Universal", Folder = "Oasis" })
 local Combat = Window:Tab({ Title = "Combat", Icon = "crosshair" })
@@ -96,8 +96,9 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
   corner radius, font, screen fit and scale, animation speed, background gradient, animated title,
   background blur, compact sidebar and card descriptions. Themes can be saved, loaded, exported and imported.
   Tooltips can be turned off in Behaviour.
-- **Config manager**: save, load, rename, delete, autoload, auto save, and export/import through the
-  clipboard. Keybinds are stored in the config too.
+- **Config manager**: save, load, rename, delete, autoload, auto save, export to the clipboard and import
+  from it (or from a paste field where the executor cannot read the clipboard). Keybinds are stored in the
+  config too.
 - **Keybind list overlay** with its own settings: all or active binds, sort order, grouping by mode, column
   layout (name, key and mode in any order), mode text (full, short or hidden), key style, size, width,
   transparency, title bar, menu key, hide while the menu is open.
