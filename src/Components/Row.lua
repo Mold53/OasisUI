@@ -16,7 +16,7 @@ function Row.new(element, parent, maid, options)
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = element.Visible,
+        Visible = element:Shown(),
         Parent = parent,
     }))
     row.Frame = frame
@@ -190,7 +190,7 @@ function Row.new(element, parent, maid, options)
             lock()
             Theme.Refresh(title, 0.15)
         end
-        if what == nil or what == "Visible" then frame.Visible = element.Visible end
+        if what == nil or what == "Visible" then frame.Visible = element:Shown() end
         if row.OnState then row.OnState(what) end
     end
     maid:Give(element.StateChanged:Connect(sync))

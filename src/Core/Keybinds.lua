@@ -8,12 +8,14 @@ local UIS = Services.UserInputService
 local Keybinds = {
     Capturing = false,
     Activity = Signal.new(),    -- a bound key went down or up
+    AvailableChanged = Signal.new(),  -- Available() flipped: a controller came or went, or the setting changed
     -- defaults for every capture; a binding can override each field
     Options = {
         ClickOutside = "Keep",  -- "Keep" | "Clear": clicking elsewhere while binding
         Escape = "Keep",        -- "Keep" | "Clear"
         Mouse = true,           -- mouse buttons 2 and 3 can be bound
         ComboKeys = 3,          -- keys per bind: 2 allows LCtrl + L, 1 turns combos off
+        Controller = true,      -- gamepad buttons can be bound and fire binds
     },
     _binds = {},
     _capture = nil,
@@ -38,13 +40,38 @@ local MOUSE = {
     [Enum.UserInputType.MouseButton3] = "MouseButton3",
 }
 
+-- the sticks move, they are no buttons
+local ANALOG = { Thumbstick1 = true, Thumbstick2 = true }
+
+-- a gamepad button counts only while controller buttons are allowed
 function Keybinds.Name(input)
     local kind = input.UserInputType
-    if kind == Enum.UserInputType.Keyboard or kind.Name:find("^Gamepad") then
+    local pad = kind.Name:find("^Gamepad") ~= nil
+    if kind == Enum.UserInputType.Keyboard or (pad and Keybinds.Options.Controller ~= false) then
         local name = input.KeyCode.Name
-        return name ~= "Unknown" and name or nil
+        return name ~= "Unknown" and not ANALOG[name] and name or nil
     end
     return MOUSE[kind]
+end
+
+-- a connected controller whose buttons may be bound
+function Keybinds.Pad()
+    return Keybinds.Options.Controller ~= false and #UIS:GetConnectedGamepads() > 0
+end
+
+-- a key can be pressed: a keyboard, or an allowed controller; key pills and key rows hide otherwise (touch only)
+local available = nil
+function Keybinds.Available()
+    if available == nil then available = UIS.KeyboardEnabled or Keybinds.Pad() end
+    return available
+end
+
+-- after a controller came or went or the setting changed
+function Keybinds.Refresh()
+    local now = UIS.KeyboardEnabled or Keybinds.Pad()
+    if now == available then return end
+    available = now
+    Keybinds.AvailableChanged:Fire(now)
 end
 
 -- entry: { Key = function() -> name?, Press = function, Release = function? }
@@ -77,7 +104,7 @@ local function option(options, key, global)
 end
 
 -- done(name) on a key, done(false) to clear, done(nil) to keep the old key
--- options: Blacklist = { names }, AllowMouse, CanUnbind, ClickOutside, Escape, ComboKeys,
+-- options: Blacklist = { names }, AllowMouse, AllowController, CanUnbind, ClickOutside, Escape, ComboKeys,
 --          Progress(text | nil) while modifiers are held
 function Keybinds.Capture(done, options)
     if Keybinds._capture then finish(nil) end
@@ -129,7 +156,10 @@ function Keybinds.Capture(done, options)
             end
         else
             local name = Keybinds.Name(input)
-            if name and not blacklist[name] then finish(combo(name)) end
+            local pad = kind.Name:find("^Gamepad") ~= nil
+            if name and not blacklist[name] and not (pad and option(options, "AllowController", "Controller") == false) then
+                finish(combo(name))
+            end
         end
     end)
     -- a held modifier let go before another key: the modifiers alone are the bind
@@ -196,6 +226,8 @@ function Keybinds.Start(maid)
     maid:Give(UIS.InputEnded:Connect(function(input)
         dispatch(input, true)
     end))
+    maid:Give(UIS.GamepadConnected:Connect(Keybinds.Refresh))
+    maid:Give(UIS.GamepadDisconnected:Connect(Keybinds.Refresh))
     maid:Give(function()
         finish(nil)
         table.clear(Keybinds._binds)

@@ -6,12 +6,14 @@ local Row = import("Components/Row")
 local Widgets = import("Components/Widgets")
 
 -- def: Title, Default (KeyCode | name), Mode ("Toggle" | "Hold" | "Always"), Modes,
---      Callback(state) for Toggle / Hold, Pressed() on every press, ChangedCallback(key)
+--      Callback(state) for Toggle / Hold, Pressed() on every press, ChangedCallback(key),
+--      NeedsKeys (default true: hidden while no key can be pressed)
 local Keybind = Base.Class("Keybind")
 
 function Keybind.new(container, def)
     local self = setmetatable({}, Keybind)
     Base.Init(self, container, def)
+    if def.NeedsKeys ~= false then self:_needsKeys() end
     self.Value = false
     -- def.Binding: show an existing binding (owner handles presses)
     self.Binding = def.Binding or Binding.new({

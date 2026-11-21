@@ -75,9 +75,11 @@ Aimbot:Slider({ Title = "FOV", Min = 10, Max = 500, Default = 120, Suffix = " px
   next key completes the bind; let go and the modifier alone is the key. `ComboKeys` sets how many keys a
   bind may have (1 turns combos off), globally, per window and per bind. A press fires the most specific
   match, so `LCtrl + L` does not also fire a plain `L`. `Listed = false` keeps a bind out of the keybind
-  list. Mouse buttons 2 and 3 and gamepad buttons work. What clicking outside or Escape does while binding
-  (keep or clear), whether mouse buttons are allowed, blacklisted keys and unclearable keys are all
-  configurable, globally and per bind.
+  list. Mouse buttons 2 and 3 and **controller buttons** work (`Pad A`, `L1`, `D-Up`, …). What clicking
+  outside or Escape does while binding (keep or clear), whether mouse or controller buttons are allowed,
+  blacklisted keys and unclearable keys are all configurable, globally and per bind. On a touch device
+  without a keyboard, key pills and key rows only show while a controller is connected and controller
+  buttons are allowed.
 - **Elements**: Toggle and Checkbox (both can have a key and a value box in the same row), Button (styles,
   confirm, key), ButtonRow,
   Slider and RangeSlider, Dropdown (single or multi, search, descriptions, icons, refresh), Input (text or
@@ -221,10 +223,10 @@ break the menu; one that does not yield has finished before the library goes on.
 | `Range` | as Slider, `Default = { lo, hi }`, `MinGap`; callback gets `(lo, hi)` | |
 | `Dropdown` | `Values` (strings or `{ Title, Value, Description, Icon }`), `Default`, `Multi`, `Search` (auto above 8), `AllowNone`, `Placeholder`, `MaxVisible`, `Action = { Icon, Tooltip, Callback(value) }` (a square button after the field) | `Refresh(values, keep?)`, `Add`, `Remove`, `Toggle(value)`, `IsSelected`, `GetValues` |
 | `Input` | `Default`, `Placeholder`, `Numeric`, `Min`, `Max`, `Step`, `MaxLength`, `Finished` (default on), `Validate(text) -> ok, message`, `Icon`, `Multiline` (scrolls, follows the caret), `Height`, `ClearOnFocus` | `Submit(text)` |
-| `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, `Listed`, capture options (below), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
+| `Keybind` | `Default`, `Mode = "Toggle" \| "Hold" \| "Always"`, `Modes`, `Listed`, capture options (below), `NeedsKeys = false` (stays shown when no key can be pressed), `Callback(state)`, `Pressed()`, `ChangedCallback(key)` | `GetKey`, `SetKey`, `SetMode`, `IsDown` |
 | `ColorPicker` | `Default`, `Transparency` (enables alpha), `Rainbow`; callback gets `(color, transparency)` | `SetRainbow(bool)` |
 | `Segmented` | `Values`, `Default` | |
-| `Group` | `Opened`, `Icon` (holds elements itself) | `SetOpened(bool)` |
+| `Group` | `Opened`, `Icon`, `NeedsKeys` (hidden when no key can be pressed: a group of key rows) (holds elements itself) | `SetOpened(bool)` |
 | `Label` | `Text`, `Value` (right aligned), `Color` (theme token), `ValueColor` (token or Color3), `Size` | `Set(text)`, `SetValue(text)`, `SetValueColor(color)` |
 | `Paragraph` | `Title`, `Content` (rich text), `Icon` | `SetContent(text)` |
 | `ProgressBar` | `Value`, `Max`, `Suffix`, `Format(v, max)`, `Color` | `SetMax` |
@@ -291,13 +293,20 @@ Capture options, per bind (`Keybind = { … }` on toggles, modules and buttons, 
 | `ClickOutside = "Keep" \| "Clear"` | clicking elsewhere while binding keeps the old key or removes it |
 | `Escape = "Keep" \| "Clear"` | the same for Escape |
 | `AllowMouse = false` | right and middle mouse button cannot be bound |
+| `AllowController = false` | controller buttons cannot be bound (e.g. a key the script presses itself) |
 | `Blacklist = { "W", Enum.KeyCode.A, … }` | keys that are ignored while binding |
 | `CanUnbind = false` | the bind always keeps a key; Backspace and "Clear key" do nothing |
 | `ComboKeys = n` | keys per bind, e.g. 2 allows `LCtrl + L` and `LCtrl + LShift`; at n keys the bind ends |
 
 Combo keys are stored as `"LeftControl+L"` (`Binding.Key`), shown as `LCtrl + L`.
 
-The global defaults for `ClickOutside`, `Escape`, mouse buttons and combo keys live in Settings → Behaviour.
+The global defaults for `ClickOutside`, `Escape`, mouse buttons, controller buttons and combo keys live in
+Settings → Behaviour. With **Allow controller buttons** off, controller buttons can neither be bound nor fire a
+bind.
+
+Keys need something to press them: on a touch device without a keyboard, key pills (cards, toggles, buttons),
+`Keybind` rows and `NeedsKeys` groups hide until a controller connects (with controller buttons allowed), and
+hide again when it disconnects or the setting goes off. A bound key keeps its key meanwhile.
 
 ## Themes
 
