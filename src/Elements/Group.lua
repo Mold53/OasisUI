@@ -5,7 +5,7 @@ local Theme = import("Core/Theme")
 local Container = import("Components/Container")
 
 -- collapsible sub-list inside a module; holds elements like a module does
--- def: Title, Description, Icon, Opened (default false)
+-- def: Title, Description, Icon, Opened (default false), NeedsKeys (hidden while no key can be pressed)
 local Group = Base.Class("Group")
 Container.Apply(Group)
 
@@ -45,7 +45,7 @@ function Group:Render(parent, maid)
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = self.Visible,
+        Visible = self:Shown(),
         Parent = parent,
     }))
     Util.List(frame, 6)
@@ -124,7 +124,7 @@ function Group:Render(parent, maid)
         count.Text = tostring(#self.Children)
         count.Visible = not self.Opened
         chevron.Image = Util.IconId(self.Opened and "chevron-down" or "chevron-right")
-        frame.Visible = self.Visible
+        frame.Visible = self:Shown()
     end
     paint(false)
     maid:Give(self.StateChanged:Connect(function() paint(true) end))

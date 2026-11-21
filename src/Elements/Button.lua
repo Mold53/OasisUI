@@ -3,6 +3,7 @@ local Base = import("Elements/Base")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Binding = import("Core/Binding")
+local Keybinds = import("Core/Keybinds")
 local Widgets = import("Components/Widgets")
 local Tooltip = import("Components/Tooltip")
 
@@ -138,13 +139,16 @@ function Button:Render(parent, maid)
     local spec = table.clone(self.Def)
     local button, paint = Button.Draw(holder, spec, function() return self end, function() self:Press() end)
     if self.Binding then
-        button.Size = UDim2.new(1, -46, 0, 30)
+        -- the pill hides while no key can be pressed: the button takes the row
+        local function fit(on) button.Size = UDim2.new(1, on and -46 or 0, 0, 30) end
+        fit(Keybinds.Available())
         local _, connection = Widgets.KeyPill(holder, self.Binding, {
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Height = 22,
         })
         maid:Give(connection)
+        maid:Give(Keybinds.AvailableChanged:Connect(fit))
     end
     if self.Tooltip then maid:Give(Tooltip.Attach(button, function() return self.Tooltip end)) end
     paint()

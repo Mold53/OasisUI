@@ -332,6 +332,11 @@ local KEY_LABELS = {
     PageUp = "PgUp", PageDown = "PgDn", Insert = "Ins", Delete = "Del", Backspace = "Bksp",
     MouseButton1 = "MB1", MouseButton2 = "MB2", MouseButton3 = "MB3", Space = "Space",
     Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9",
+    -- gamepad: face buttons apart from the letter keys
+    ButtonA = "Pad A", ButtonB = "Pad B", ButtonX = "Pad X", ButtonY = "Pad Y",
+    ButtonL1 = "L1", ButtonR1 = "R1", ButtonL2 = "L2", ButtonR2 = "R2", ButtonL3 = "L3", ButtonR3 = "R3",
+    ButtonStart = "Start", ButtonSelect = "Select",
+    DPadUp = "D-Up", DPadDown = "D-Down", DPadLeft = "D-Left", DPadRight = "D-Right",
 }
 
 function Util.KeyLabel(name)

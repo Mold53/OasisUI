@@ -2,6 +2,7 @@ local import = ...
 local Signal = import("Core/Signal")
 local Maid = import("Core/Maid")
 local Util = import("Core/Util")
+local Keybinds = import("Core/Keybinds")
 
 -- element model: holds the value; any number of views (tab, favorites, search) render it
 local Base = {}
@@ -28,6 +29,7 @@ function Base.Init(self, container, def)
     self.LockReason = def.LockedReason or def.LockReason
     self.Visible = def.Visible ~= false
     self.NoSave = def.NoSave == true or def.Flag == nil
+    if def.NeedsKeys then self:_needsKeys() end
     self._listeners = {}
     self._mounts = {}
     if self.Flag then
@@ -96,6 +98,18 @@ function Base:SetVisible(visible)
     self.StateChanged:Fire("Visible")
 end
 
+-- a key-only element (Keybind rows, def.NeedsKeys) hides while no key can be pressed (Keybinds.Available)
+function Base:_needsKeys()
+    if self.NeedsKeys then return end
+    self.NeedsKeys = true
+    self._keysConn = Keybinds.AvailableChanged:Connect(function() self.StateChanged:Fire("Visible") end)
+end
+
+-- what the views show: Visible, and for a key-only element a keyboard or an allowed controller
+function Base:Shown()
+    return self.Visible and (not self.NeedsKeys or Keybinds.Available())
+end
+
 -- keeps this element locked (or hidden) while predicate(source value) is false
 function Base:DependsOn(source, predicate, mode)
     predicate = predicate or function(value) return value and true or false end
@@ -147,6 +161,7 @@ function Base:Destroy()
         if self.Window.Library.Flags[self.Flag] == self then self.Window.Library.Flags[self.Flag] = nil end
     end
     if self.Binding then self.Binding:Destroy() end
+    if self._keysConn then self._keysConn:Disconnect() end
     local children = self.Container.Children
     local index = table.find(children, self)
     if index then table.remove(children, index) end

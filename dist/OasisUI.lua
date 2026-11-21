@@ -1,4 +1,4 @@
--- OasisUI v1.9.1 | MIT License | https://github.com/Mold53/OasisUI
+-- OasisUI v1.10.0 | MIT License | https://github.com/Mold53/OasisUI
 -- generated from src/ by build/bundle.mjs, do not edit
 local __modules, __cache = {}, {}
 local function import(name)
@@ -446,6 +446,15 @@ return function(window)
         Default = interface.BindMouse ~= false,
         Callback = function(on)
             window:SetInterface("BindMouse", on)
+            window:ApplyBindOptions()
+        end,
+    })
+    binding:Toggle({
+        Title = "Allow controller buttons",
+        Default = interface.BindController ~= false,
+        Tooltip = "Bind gamepad buttons. Touch devices show keys while one is connected.",
+        Callback = function(on)
+            window:SetInterface("BindController", on)
             window:ApplyBindOptions()
         end,
     })
@@ -1220,6 +1229,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Signal = import("Core/Signal")
 local Binding = import("Core/Binding")
+local Keybinds = import("Core/Keybinds")
 local Container = import("Components/Container")
 local Widgets = import("Components/Widgets")
 local Menu = import("Components/Menu")
@@ -1432,7 +1442,7 @@ function Module:_menu(view, point)
     if #self.Children > 0 then
         table.insert(items, { Title = self.Expanded and "Collapse" or "Expand", Icon = "chevrons-up-down", Callback = function() self:SetExpanded(not self.Expanded) end })
     end
-    if self.Binding then
+    if self.Binding and Keybinds.Available() then
         table.insert(items, "-")
         table.insert(items, { Title = "Bind key", Icon = "keyboard", Hint = Util.KeyLabel(self.Binding.Key), Callback = function() self:_capture() end })
         for _, mode in self.Binding.Modes do
@@ -1452,7 +1462,7 @@ function Module:_menu(view, point)
 end
 
 function Module:_capture()
-    if self.Binding and not self.Locked then self.Binding:Capture() end
+    if self.Binding and not self.Locked and Keybinds.Available() then self.Binding:Capture() end
 end
 
 -- view: { Page, Source (show the tab tag), Maid }
@@ -3273,7 +3283,7 @@ function Row.new(element, parent, maid, options)
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = element.Visible,
+        Visible = element:Shown(),
         Parent = parent,
     }))
     row.Frame = frame
@@ -3447,7 +3457,7 @@ function Row.new(element, parent, maid, options)
             lock()
             Theme.Refresh(title, 0.15)
         end
-        if what == nil or what == "Visible" then frame.Visible = element.Visible end
+        if what == nil or what == "Visible" then frame.Visible = element:Shown() end
         if row.OnState then row.OnState(what) end
     end
     maid:Give(element.StateChanged:Connect(sync))
@@ -4127,6 +4137,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Menu = import("Components/Menu")
 local Tooltip = import("Components/Tooltip")
+local Keybinds = import("Core/Keybinds")
 
 -- small controls shared by modules and elements
 local Widgets = {}
@@ -4199,7 +4210,7 @@ function Widgets.Checkbox(parent, props)
     return box, paint
 end
 
--- key pill for a Binding; click binds, right click opens modes
+-- key pill for a Binding; click binds, right click opens modes; hidden while no key can be pressed (Keybinds.Available)
 function Widgets.KeyPill(parent, binding, props)
     props = props or {}
     local hover = false
@@ -4210,6 +4221,7 @@ function Widgets.KeyPill(parent, binding, props)
         AnchorPoint = props.AnchorPoint or Vector2.new(0, 0.5),
         Position = props.Position or UDim2.new(0, 0, 0.5, 0),
         LayoutOrder = props.LayoutOrder or 0,
+        Visible = Keybinds.Available(),
         Theme = {
             BackgroundColor3 = function(t) return hover and t.ElevatedHover or t.Elevated end,
             BackgroundTransparency = function(t) return math.min(t.ElevatedTransparency, 0.2) end,
@@ -4256,8 +4268,11 @@ function Widgets.KeyPill(parent, binding, props)
 
     local connections = {}
     table.insert(connections, binding.Changed:Connect(paint))
+    table.insert(connections, Keybinds.AvailableChanged:Connect(function(on) pill.Visible = on end))
     table.insert(connections, Tooltip.Attach(pill, function()
-        if binding.Capturing then return "Press a key · Esc cancels · Backspace clears" end
+        if binding.Capturing then
+            return (Keybinds.Pad() and "Press a key or button" or "Press a key") .. " · Esc cancels · Backspace clears"
+        end
         if #binding.Modes < 2 then return nil end
         return Util.Touch() and "Hold for mode" or "Right-click for mode"
     end))
@@ -4355,6 +4370,7 @@ local INTERFACE = {
     BindClickOutside = "Keep",
     BindEscape = "Keep",
     BindMouse = true,
+    BindController = true,   -- gamepad buttons can be bound; on a touch-only device keys show only with a controller
     BindComboKeys = 3,       -- keys per bind (def.ComboKeys sets the default)
     Tooltips = true,
     AutoSave = false,        -- configs: changes go into the loaded config (def.AutoSave sets the default)
@@ -4503,6 +4519,8 @@ function Window:ApplyBindOptions()
     Keybinds.Options.Escape = self.Interface.BindEscape
     Keybinds.Options.Mouse = self.Interface.BindMouse ~= false
     Keybinds.Options.ComboKeys = tonumber(self.Interface.BindComboKeys) or 3
+    Keybinds.Options.Controller = self.Interface.BindController ~= false
+    Keybinds.Refresh()
     Tooltip.Enabled = self.Interface.Tooltips ~= false
 end
 
@@ -5600,7 +5618,7 @@ end
 Binding.KeyName = keyName
 
 -- options: Key, Mode, Modes, Press(binding), Release(binding),
---          Capture = { Blacklist, AllowMouse, CanUnbind, ClickOutside, Escape } (see Keybinds.Capture)
+--          Capture = { Blacklist, AllowMouse, AllowController, CanUnbind, ClickOutside, Escape } (see Keybinds.Capture)
 function Binding.new(options)
     local capture = options.Capture or {}
     local self = setmetatable({
@@ -5613,6 +5631,7 @@ function Binding.new(options)
         CaptureOptions = {
             Blacklist = capture.Blacklist,
             AllowMouse = capture.AllowMouse,
+            AllowController = capture.AllowController,
             CanUnbind = capture.CanUnbind,
             ClickOutside = capture.ClickOutside,
             Escape = capture.Escape,
@@ -6232,12 +6251,14 @@ local UIS = Services.UserInputService
 local Keybinds = {
     Capturing = false,
     Activity = Signal.new(),    -- a bound key went down or up
+    AvailableChanged = Signal.new(),  -- Available() flipped: a controller came or went, or the setting changed
     -- defaults for every capture; a binding can override each field
     Options = {
         ClickOutside = "Keep",  -- "Keep" | "Clear": clicking elsewhere while binding
         Escape = "Keep",        -- "Keep" | "Clear"
         Mouse = true,           -- mouse buttons 2 and 3 can be bound
         ComboKeys = 3,          -- keys per bind: 2 allows LCtrl + L, 1 turns combos off
+        Controller = true,      -- gamepad buttons can be bound and fire binds
     },
     _binds = {},
     _capture = nil,
@@ -6262,13 +6283,38 @@ local MOUSE = {
     [Enum.UserInputType.MouseButton3] = "MouseButton3",
 }
 
+-- the sticks move, they are no buttons
+local ANALOG = { Thumbstick1 = true, Thumbstick2 = true }
+
+-- a gamepad button counts only while controller buttons are allowed
 function Keybinds.Name(input)
     local kind = input.UserInputType
-    if kind == Enum.UserInputType.Keyboard or kind.Name:find("^Gamepad") then
+    local pad = kind.Name:find("^Gamepad") ~= nil
+    if kind == Enum.UserInputType.Keyboard or (pad and Keybinds.Options.Controller ~= false) then
         local name = input.KeyCode.Name
-        return name ~= "Unknown" and name or nil
+        return name ~= "Unknown" and not ANALOG[name] and name or nil
     end
     return MOUSE[kind]
+end
+
+-- a connected controller whose buttons may be bound
+function Keybinds.Pad()
+    return Keybinds.Options.Controller ~= false and #UIS:GetConnectedGamepads() > 0
+end
+
+-- a key can be pressed: a keyboard, or an allowed controller; key pills and key rows hide otherwise (touch only)
+local available = nil
+function Keybinds.Available()
+    if available == nil then available = UIS.KeyboardEnabled or Keybinds.Pad() end
+    return available
+end
+
+-- after a controller came or went or the setting changed
+function Keybinds.Refresh()
+    local now = UIS.KeyboardEnabled or Keybinds.Pad()
+    if now == available then return end
+    available = now
+    Keybinds.AvailableChanged:Fire(now)
 end
 
 -- entry: { Key = function() -> name?, Press = function, Release = function? }
@@ -6301,7 +6347,7 @@ local function option(options, key, global)
 end
 
 -- done(name) on a key, done(false) to clear, done(nil) to keep the old key
--- options: Blacklist = { names }, AllowMouse, CanUnbind, ClickOutside, Escape, ComboKeys,
+-- options: Blacklist = { names }, AllowMouse, AllowController, CanUnbind, ClickOutside, Escape, ComboKeys,
 --          Progress(text | nil) while modifiers are held
 function Keybinds.Capture(done, options)
     if Keybinds._capture then finish(nil) end
@@ -6353,7 +6399,10 @@ function Keybinds.Capture(done, options)
             end
         else
             local name = Keybinds.Name(input)
-            if name and not blacklist[name] then finish(combo(name)) end
+            local pad = kind.Name:find("^Gamepad") ~= nil
+            if name and not blacklist[name] and not (pad and option(options, "AllowController", "Controller") == false) then
+                finish(combo(name))
+            end
         end
     end)
     -- a held modifier let go before another key: the modifiers alone are the bind
@@ -6420,6 +6469,8 @@ function Keybinds.Start(maid)
     maid:Give(UIS.InputEnded:Connect(function(input)
         dispatch(input, true)
     end))
+    maid:Give(UIS.GamepadConnected:Connect(Keybinds.Refresh))
+    maid:Give(UIS.GamepadDisconnected:Connect(Keybinds.Refresh))
     maid:Give(function()
         finish(nil)
         table.clear(Keybinds._binds)
@@ -7218,6 +7269,11 @@ local KEY_LABELS = {
     PageUp = "PgUp", PageDown = "PgDn", Insert = "Ins", Delete = "Del", Backspace = "Bksp",
     MouseButton1 = "MB1", MouseButton2 = "MB2", MouseButton3 = "MB3", Space = "Space",
     Zero = "0", One = "1", Two = "2", Three = "3", Four = "4", Five = "5", Six = "6", Seven = "7", Eight = "8", Nine = "9",
+    -- gamepad: face buttons apart from the letter keys
+    ButtonA = "Pad A", ButtonB = "Pad B", ButtonX = "Pad X", ButtonY = "Pad Y",
+    ButtonL1 = "L1", ButtonR1 = "R1", ButtonL2 = "L2", ButtonR2 = "R2", ButtonL3 = "L3", ButtonR3 = "R3",
+    ButtonStart = "Start", ButtonSelect = "Select",
+    DPadUp = "D-Up", DPadDown = "D-Down", DPadLeft = "D-Left", DPadRight = "D-Right",
 }
 
 function Util.KeyLabel(name)
@@ -7279,6 +7335,7 @@ local import = ...
 local Signal = import("Core/Signal")
 local Maid = import("Core/Maid")
 local Util = import("Core/Util")
+local Keybinds = import("Core/Keybinds")
 
 -- element model: holds the value; any number of views (tab, favorites, search) render it
 local Base = {}
@@ -7305,6 +7362,7 @@ function Base.Init(self, container, def)
     self.LockReason = def.LockedReason or def.LockReason
     self.Visible = def.Visible ~= false
     self.NoSave = def.NoSave == true or def.Flag == nil
+    if def.NeedsKeys then self:_needsKeys() end
     self._listeners = {}
     self._mounts = {}
     if self.Flag then
@@ -7373,6 +7431,18 @@ function Base:SetVisible(visible)
     self.StateChanged:Fire("Visible")
 end
 
+-- a key-only element (Keybind rows, def.NeedsKeys) hides while no key can be pressed (Keybinds.Available)
+function Base:_needsKeys()
+    if self.NeedsKeys then return end
+    self.NeedsKeys = true
+    self._keysConn = Keybinds.AvailableChanged:Connect(function() self.StateChanged:Fire("Visible") end)
+end
+
+-- what the views show: Visible, and for a key-only element a keyboard or an allowed controller
+function Base:Shown()
+    return self.Visible and (not self.NeedsKeys or Keybinds.Available())
+end
+
 -- keeps this element locked (or hidden) while predicate(source value) is false
 function Base:DependsOn(source, predicate, mode)
     predicate = predicate or function(value) return value and true or false end
@@ -7424,6 +7494,7 @@ function Base:Destroy()
         if self.Window.Library.Flags[self.Flag] == self then self.Window.Library.Flags[self.Flag] = nil end
     end
     if self.Binding then self.Binding:Destroy() end
+    if self._keysConn then self._keysConn:Disconnect() end
     local children = self.Container.Children
     local index = table.find(children, self)
     if index then table.remove(children, index) end
@@ -7440,6 +7511,7 @@ local Base = import("Elements/Base")
 local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Binding = import("Core/Binding")
+local Keybinds = import("Core/Keybinds")
 local Widgets = import("Components/Widgets")
 local Tooltip = import("Components/Tooltip")
 
@@ -7575,13 +7647,16 @@ function Button:Render(parent, maid)
     local spec = table.clone(self.Def)
     local button, paint = Button.Draw(holder, spec, function() return self end, function() self:Press() end)
     if self.Binding then
-        button.Size = UDim2.new(1, -46, 0, 30)
+        -- the pill hides while no key can be pressed: the button takes the row
+        local function fit(on) button.Size = UDim2.new(1, on and -46 or 0, 0, 30) end
+        fit(Keybinds.Available())
         local _, connection = Widgets.KeyPill(holder, self.Binding, {
             AnchorPoint = Vector2.new(1, 0.5),
             Position = UDim2.new(1, 0, 0.5, 0),
             Height = 22,
         })
         maid:Give(connection)
+        maid:Give(Keybinds.AvailableChanged:Connect(fit))
     end
     if self.Tooltip then maid:Give(Tooltip.Attach(button, function() return self.Tooltip end)) end
     paint()
@@ -8765,7 +8840,7 @@ local Theme = import("Core/Theme")
 local Container = import("Components/Container")
 
 -- collapsible sub-list inside a module; holds elements like a module does
--- def: Title, Description, Icon, Opened (default false)
+-- def: Title, Description, Icon, Opened (default false), NeedsKeys (hidden while no key can be pressed)
 local Group = Base.Class("Group")
 Container.Apply(Group)
 
@@ -8805,7 +8880,7 @@ function Group:Render(parent, maid)
         BackgroundTransparency = 1,
         Size = UDim2.new(1, 0, 0, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
-        Visible = self.Visible,
+        Visible = self:Shown(),
         Parent = parent,
     }))
     Util.List(frame, 6)
@@ -8884,7 +8959,7 @@ function Group:Render(parent, maid)
         count.Text = tostring(#self.Children)
         count.Visible = not self.Opened
         chevron.Image = Util.IconId(self.Opened and "chevron-down" or "chevron-right")
-        frame.Visible = self.Visible
+        frame.Visible = self:Shown()
     end
     paint(false)
     maid:Give(self.StateChanged:Connect(function() paint(true) end))
@@ -9174,12 +9249,14 @@ local Row = import("Components/Row")
 local Widgets = import("Components/Widgets")
 
 -- def: Title, Default (KeyCode | name), Mode ("Toggle" | "Hold" | "Always"), Modes,
---      Callback(state) for Toggle / Hold, Pressed() on every press, ChangedCallback(key)
+--      Callback(state) for Toggle / Hold, Pressed() on every press, ChangedCallback(key),
+--      NeedsKeys (default true: hidden while no key can be pressed)
 local Keybind = Base.Class("Keybind")
 
 function Keybind.new(container, def)
     local self = setmetatable({}, Keybind)
     Base.Init(self, container, def)
+    if def.NeedsKeys ~= false then self:_needsKeys() end
     self.Value = false
     -- def.Binding: show an existing binding (owner handles presses)
     self.Binding = def.Binding or Binding.new({
@@ -10534,5 +10611,5 @@ return Library
 end
 
 local Library = import("init")
-Library.Version = "1.9.1"
+Library.Version = "1.10.0"
 return Library

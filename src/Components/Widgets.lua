@@ -3,6 +3,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Menu = import("Components/Menu")
 local Tooltip = import("Components/Tooltip")
+local Keybinds = import("Core/Keybinds")
 
 -- small controls shared by modules and elements
 local Widgets = {}
@@ -75,7 +76,7 @@ function Widgets.Checkbox(parent, props)
     return box, paint
 end
 
--- key pill for a Binding; click binds, right click opens modes
+-- key pill for a Binding; click binds, right click opens modes; hidden while no key can be pressed (Keybinds.Available)
 function Widgets.KeyPill(parent, binding, props)
     props = props or {}
     local hover = false
@@ -86,6 +87,7 @@ function Widgets.KeyPill(parent, binding, props)
         AnchorPoint = props.AnchorPoint or Vector2.new(0, 0.5),
         Position = props.Position or UDim2.new(0, 0, 0.5, 0),
         LayoutOrder = props.LayoutOrder or 0,
+        Visible = Keybinds.Available(),
         Theme = {
             BackgroundColor3 = function(t) return hover and t.ElevatedHover or t.Elevated end,
             BackgroundTransparency = function(t) return math.min(t.ElevatedTransparency, 0.2) end,
@@ -132,8 +134,11 @@ function Widgets.KeyPill(parent, binding, props)
 
     local connections = {}
     table.insert(connections, binding.Changed:Connect(paint))
+    table.insert(connections, Keybinds.AvailableChanged:Connect(function(on) pill.Visible = on end))
     table.insert(connections, Tooltip.Attach(pill, function()
-        if binding.Capturing then return "Press a key · Esc cancels · Backspace clears" end
+        if binding.Capturing then
+            return (Keybinds.Pad() and "Press a key or button" or "Press a key") .. " · Esc cancels · Backspace clears"
+        end
         if #binding.Modes < 2 then return nil end
         return Util.Touch() and "Hold for mode" or "Right-click for mode"
     end))

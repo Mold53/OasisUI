@@ -3,6 +3,7 @@ local Util = import("Core/Util")
 local Theme = import("Core/Theme")
 local Signal = import("Core/Signal")
 local Binding = import("Core/Binding")
+local Keybinds = import("Core/Keybinds")
 local Container = import("Components/Container")
 local Widgets = import("Components/Widgets")
 local Menu = import("Components/Menu")
@@ -215,7 +216,7 @@ function Module:_menu(view, point)
     if #self.Children > 0 then
         table.insert(items, { Title = self.Expanded and "Collapse" or "Expand", Icon = "chevrons-up-down", Callback = function() self:SetExpanded(not self.Expanded) end })
     end
-    if self.Binding then
+    if self.Binding and Keybinds.Available() then
         table.insert(items, "-")
         table.insert(items, { Title = "Bind key", Icon = "keyboard", Hint = Util.KeyLabel(self.Binding.Key), Callback = function() self:_capture() end })
         for _, mode in self.Binding.Modes do
@@ -235,7 +236,7 @@ function Module:_menu(view, point)
 end
 
 function Module:_capture()
-    if self.Binding and not self.Locked then self.Binding:Capture() end
+    if self.Binding and not self.Locked and Keybinds.Available() then self.Binding:Capture() end
 end
 
 -- view: { Page, Source (show the tab tag), Maid }

@@ -433,6 +433,15 @@ return function(window)
             window:ApplyBindOptions()
         end,
     })
+    binding:Toggle({
+        Title = "Allow controller buttons",
+        Default = interface.BindController ~= false,
+        Tooltip = "Bind gamepad buttons. Touch devices show keys while one is connected.",
+        Callback = function(on)
+            window:SetInterface("BindController", on)
+            window:ApplyBindOptions()
+        end,
+    })
     binding:Slider({
         Title = "Combo keys",
         Min = 1, Max = 4,

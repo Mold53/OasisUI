@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0] - 2026-11-21
+
+### Added
+
+- Controller buttons as keys, shown as `Pad A`, `Pad B`, `L1`, `R2`, `L3`, `Start`, `D-Up`, … (the sticks are
+  no buttons and are ignored). Settings > Behaviour > Binding keys > **Allow controller buttons** (on by
+  default): off, controller buttons can neither be bound nor fire a bind. Per bind: `AllowController = false`.
+- Touch devices without a keyboard show key pills and key rows only while a controller is connected and
+  controller buttons are allowed; they appear and hide as a controller connects or disconnects. A button with a
+  key takes the full row while its pill is hidden. `Keybind` rows follow this by default (`NeedsKeys = false`
+  keeps one shown), groups with `NeedsKeys = true` too. The card menu offers "Bind key" only then.
+
 ## [1.9.1] - 2026-11-20
 
 ### Fixed

@@ -14,7 +14,7 @@ end
 Binding.KeyName = keyName
 
 -- options: Key, Mode, Modes, Press(binding), Release(binding),
---          Capture = { Blacklist, AllowMouse, CanUnbind, ClickOutside, Escape } (see Keybinds.Capture)
+--          Capture = { Blacklist, AllowMouse, AllowController, CanUnbind, ClickOutside, Escape } (see Keybinds.Capture)
 function Binding.new(options)
     local capture = options.Capture or {}
     local self = setmetatable({
@@ -27,6 +27,7 @@ function Binding.new(options)
         CaptureOptions = {
             Blacklist = capture.Blacklist,
             AllowMouse = capture.AllowMouse,
+            AllowController = capture.AllowController,
             CanUnbind = capture.CanUnbind,
             ClickOutside = capture.ClickOutside,
             Escape = capture.Escape,

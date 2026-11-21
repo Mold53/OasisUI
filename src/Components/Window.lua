@@ -53,6 +53,7 @@ local INTERFACE = {
     BindClickOutside = "Keep",
     BindEscape = "Keep",
     BindMouse = true,
+    BindController = true,   -- gamepad buttons can be bound; on a touch-only device keys show only with a controller
     BindComboKeys = 3,       -- keys per bind (def.ComboKeys sets the default)
     Tooltips = true,
     AutoSave = false,        -- configs: changes go into the loaded config (def.AutoSave sets the default)
@@ -201,6 +202,8 @@ function Window:ApplyBindOptions()
     Keybinds.Options.Escape = self.Interface.BindEscape
     Keybinds.Options.Mouse = self.Interface.BindMouse ~= false
     Keybinds.Options.ComboKeys = tonumber(self.Interface.BindComboKeys) or 3
+    Keybinds.Options.Controller = self.Interface.BindController ~= false
+    Keybinds.Refresh()
     Tooltip.Enabled = self.Interface.Tooltips ~= false
 end
 
